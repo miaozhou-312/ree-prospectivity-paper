@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+run_output.ipynb
+
+# OS cruft (incl. Windows alternate-data-stream sidecars copied through WSL)
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+*:sec.endpointdlp
+
+# The downloaded dataset belongs next to the repo (../dataset), never in it
+/dataset/
+
+# The notebook reads the three deposit CSVs from the repo root. They are
+# versioned once, under data/labels/; the root copies are local only.
+/*_REE_deposits_deduped*.csv
+
+# Everything the pipeline writes when run (clipped-raster caches, feature
+# tables, prospectivity maps, GIS export, SHAP figures). Patterns cover the
+# repo root, notebooks/, and any custom driver script's directory.
+clipped/
+clipped_buffered/
+gis_export/
+shap_figures/
+*_features_semisup*.csv
+*_features_no_geochem*.csv
+*_top*_potential_targets*.csv
+*_prospectivity_*.geojson
+*_prospectivity_RF.*
+*_prospectivity_DevNet.*
