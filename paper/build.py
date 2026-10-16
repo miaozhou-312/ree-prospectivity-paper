@@ -1,6 +1,10 @@
 """
 Build the journal manuscript.
 
+Two versions are kept side by side:
+  python paper/build.py            original:  main_src.tex + generated/          -> manuscript.pdf
+  python paper/build.py revised    revised:   main_src_revised.tex + generated_revised/ -> manuscript_revised.pdf
+
 1. Copies the analysis figures from paper_analyses/out/ into
    paper/manuscript/figures/.
 2. Replaces every `%%GEN:<name>%%` line of manuscript/main_src.tex with
@@ -25,15 +29,19 @@ COPY = {'fig_shap_superior.png': 'fig_shap_superior.png',
 
 
 def main():
+    revised = 'revised' in sys.argv[1:]
+    src_name, gen_dir, out_name = (('main_src_revised.tex', 'generated_revised', 'manuscript_revised') if revised
+                                   else ('main_src.tex', 'generated', 'manuscript'))
     for src, dst in COPY.items():
-        shutil.copy(os.path.join(OUT, src), os.path.join(MS, 'figures', dst))
+        if os.path.exists(os.path.join(OUT, src)):
+            shutil.copy(os.path.join(OUT, src), os.path.join(MS, 'figures', dst))
 
-    with open(os.path.join(MS, 'main_src.tex')) as f:
+    with open(os.path.join(MS, src_name)) as f:
         src = f.read()
     missing = []
 
     def splice(m):
-        path = os.path.join(MS, 'generated', f'{m.group(1)}.tex')
+        path = os.path.join(MS, gen_dir, f'{m.group(1)}.tex')
         if not os.path.exists(path):
             missing.append(m.group(1))
             return m.group(0)
@@ -46,11 +54,11 @@ def main():
     left = re.findall(r'\[\[[A-Z_]+\]\]', out)
     if left:
         print(f'WARNING: unfilled placeholders: {left}')
-    with open(os.path.join(MS, 'manuscript.tex'), 'w') as f:
+    with open(os.path.join(MS, f'{out_name}.tex'), 'w') as f:
         f.write(out)
 
-    subprocess.run(['tectonic', '-X', 'compile', '--keep-logs', 'manuscript.tex'], cwd=MS, check=True)
-    print('built', os.path.join(MS, 'manuscript.pdf'))
+    subprocess.run(['tectonic', '-X', 'compile', '--keep-logs', f'{out_name}.tex'], cwd=MS, check=True)
+    print('built', os.path.join(MS, f'{out_name}.pdf'))
 
 
 if __name__ == '__main__':

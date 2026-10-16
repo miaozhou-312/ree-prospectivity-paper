@@ -30,6 +30,22 @@ python -m paper_analyses.06_figures_tables         # figures + LaTeX table bodie
 python paper/build.py                              # splice tables, compile manuscript.pdf (Tectonic)
 ```
 
+**Revised manuscript** (`main_src_revised.tex` → `manuscript_revised.pdf`).
+Here "DevNet" is the final configuration (quantile-normal inputs, 16 positive
++ 240 background rows per step, 300 steps), nnPU uses the same inputs, and
+the z-scored DevNet variants of Stages 01–02 and 08–10 appear only in the
+ablation appendix. The original manuscript and its generator are unchanged.
+
+```bash
+python -m paper_analyses.11_devnet_final           # final DevNet: random CV + 50/100/200 km blocks, paired tests
+python -m paper_analyses.12_final_production       # production fits, SHAP, 0.1 deg grid scores, Clay-Howells
+python -m paper_analyses.14_final_suite            # nnPU with quantile inputs, full features, margin, class prior
+python -m paper_analyses.15_augmentation_final     # augmentation experiments with the final DevNet
+python -m paper_analyses.13_maps                   # ArcGIS-style Superior and Kapuskasing maps
+python -m paper_analyses.06b_figures_tables_revised  # figures + table bodies -> generated_revised/
+python paper/build.py revised                      # compile manuscript_revised.pdf
+```
+
 Stages 01–05 and 07 only read the Stage-0 cache and can run in parallel;
 each takes minutes on a laptop CPU. Results go to `paper_analyses/out/`
 (git-ignored).

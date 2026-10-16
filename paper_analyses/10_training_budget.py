@@ -55,7 +55,7 @@ ES_CHECKPOINTS = [100, 200, 300, 500, 750, 1000, 1500, 2000, 3000]
 ES_INNER_BLOCK_KM, ES_INNER_FOLDS, ES_INNER_RESTARTS = 100.0, 3, 2
 
 
-def train(X, y, seed, cfg, n_pos, n_bg, t_max, stop_at, X_eval=None, checkpoints=()):
+def train(X, y, seed, cfg, n_pos, n_bg, t_max, stop_at, X_eval=None, checkpoints=(), margin=None):
     """DevNet training loop of src.models.devnet.train_devnet with separate
     positive / background batch sizes, a cosine schedule over `t_max` steps,
     and optional scoring of X_eval at checkpoints."""
@@ -74,7 +74,7 @@ def train(X, y, seed, cfg, n_pos, n_bg, t_max, stop_at, X_eval=None, checkpoints
                     rng.choice(bg_idx, n_bg, replace=len(bg_idx) < n_bg)]
         model.train()
         opt.zero_grad()
-        loss = deviation_loss(model(Xt[idx]), lab, config.DN_MARGIN)
+        loss = deviation_loss(model(Xt[idx]), lab, config.DN_MARGIN if margin is None else margin)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         opt.step()
