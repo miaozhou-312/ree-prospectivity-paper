@@ -42,7 +42,10 @@ def get_device(force_cpu):
 
 
 # ── Fixed reference pool (build once, reuse for every batch/fold/restart) ──
-_REF = torch.randn(50000)
+# Drawn from its own seeded generator: this runs at import time, before any
+# caller can seed torch, and torch's start-up seed differs per process
+# (KNOWN ISSUE #5, fixed).
+_REF = torch.randn(50000, generator=torch.Generator().manual_seed(42))
 
 
 def deviation_loss(scores, labels, margin, ref=_REF):
