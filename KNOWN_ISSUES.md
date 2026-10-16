@@ -108,6 +108,24 @@ layer(s)"; 48 features before pruning). No notebook ever builds a
 cratonic-margin or province-boundary feature. The thesis-era `data/README.md`
 also claimed three vector layers.
 
+Where the province data *was* used (traced October 2026):
+- **Study-area outlines.** The three regions are the Cordilleran Orogen,
+  Superior and Grenville polygons of GSC Map 1860A (`GEOPROV.SHP`, field
+  `GEOLPROV`); `data/outlines/*.geojson` carry those attributes. So Wheeler
+  et al. (1996) is a genuine input — it defines the regions — just not a
+  distance feature.
+- **Early structure feature, dropped.** The June exploratory notebook
+  (`experiments/01_geochemistry/multiregion_integrated_pca_lda.ipynb`) had a
+  `struct_proximity` feature from `dataset_old/<Region>_structure.geojson`
+  (OneDrive, `Desktop/graduate IC/dataset_old/`). Those files are the
+  **Getech structural database** (faults, thrusts, folds; `refs_cit` "Getech
+  Group plc"), not province boundaries, and the feature did not survive the
+  move to the geophysics-only models.
+
+So the Table 1 row could instead be rewritten as "Geological provinces —
+polygon — study-area definition — Wheeler et al. (1996)" and moved out of
+the feature list.
+
 **How to fix — choose one.**
 - **A. Correct the paper** (no re-run): drop the row from Table 1 and make
   sure the feature count and the mineral-system narrative match the two line
