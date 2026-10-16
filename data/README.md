@@ -43,8 +43,14 @@ The pipeline expects the downloaded layers in a `dataset/` folder that sits
                                                        DEPOSITS_ROOT is '..')
 ```
 
-From the repository root, after downloading the layers in Section 2 into
-`../dataset/{rasters,vectors,points,h3_grid}`:
+**With the project's prepared data archive** (`ree_dataset_public.zip` and
+`ree_dataset_getech.zip`, kept privately and not distributed with this
+repository): unzip both in the folder that contains this repository, which
+creates `../dataset/` with every layer, the outlines, the labels and the
+geochemistry already in place, then run only the last `cp` line below.
+
+**Assembling it yourself:** from the repository root, after downloading the
+layers in Section 2 into `../dataset/{rasters,vectors,points,h3_grid}`:
 
 ```bash
 mkdir -p ../dataset/outlines
