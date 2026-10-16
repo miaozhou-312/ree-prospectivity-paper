@@ -24,6 +24,12 @@ so the learning paradigm is the only difference between them.
 | [`data/`](data/) | Positive-label tables and study-area outlines, plus the [data guide](data/README.md): every input layer with its source, DOI and where to put it. |
 | [`figures/`](figures/) | Result figures shown below. |
 | [`dev/`](dev/) | Superseded code removed from the pipeline, kept with the reason it was removed. |
+| [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) | Open problems to fix before publication, with locations, evidence and fixes. |
+
+> **Before relying on the results, read [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).**
+> In particular, the SHAP direction-consistency table (notebook Section 13e)
+> and the era directions (13e-2) are computed incorrectly; importances,
+> beeswarm and waterfall plots, and all performance metrics are unaffected.
 
 ## Quick start
 

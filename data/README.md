@@ -93,7 +93,7 @@ most of the inputs:
 | `DeepMagSources_Worms_USCanada.shp` | `points/` | Deep magnetic worms |
 | `Geology_H3Grid_Canada.shp` | `h3_grid/` | H3 (res 7) grid carrying geological era and lithology (from Wheeler et al., 1996) |
 | `GeologyPassiveMargins_World.gdb`, exported as `AncientPassiveMargins.geojson` | `vectors/` | Ancient passive margins (Bradley, 2008 compilation) |
-| `Faults_Canada.geojson` | `vectors/` | Faults, Canada subset |
+| `Faults_Canada.geojson` | `vectors/` | Faults, Canada subset (source to confirm: see [KNOWN_ISSUES #3](../KNOWN_ISSUES.md#3-provenance-of-the-fault-layer-is-unverified)) |
 
 **Positive-label sources** (already in [`labels/source/`](labels/source/);
 only needed if you want to rebuild the label tables):

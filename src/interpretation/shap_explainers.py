@@ -46,6 +46,7 @@ def explain_rf(rf_model, X_explain):
     explainer = shap.TreeExplainer(rf_model)
     sv = np.array(explainer.shap_values(X_explain))
     ev = explainer.expected_value
+    # KNOWN ISSUE #4: correct only for shap>=0.45; older list output is silently mis-sliced -- see KNOWN_ISSUES.md
     if sv.ndim == 3:            # (n, n_features, n_classes) -- keep positive class
         sv = sv[:, :, 1]
         ev = ev[1] if np.ndim(ev) > 0 else ev

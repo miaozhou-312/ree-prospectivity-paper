@@ -51,6 +51,7 @@ def compute_era_importance(trained, shap_results, shap_regions):
             shap_dn_col = r['shap_dn'][:, i]
             era_is_1 = (explain_pts[col].values == 1)
 
+            # KNOWN ISSUE #1: *_when_present carries the SHAP baseline offset -- see KNOWN_ISSUES.md
             era_importance_rows.append({
                 'region': name, 'era': era,
                 'RF_mean_abs_shap':     float(np.abs(shap_rf_col).mean()),

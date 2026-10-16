@@ -48,6 +48,7 @@ def direction_consistency_table(shap_rf, shap_dn, feat_cols, top_k=10):
     norm_dn = imp_dn / imp_dn.max() if imp_dn.max() > 0 else imp_dn
     top_idx = np.argsort(-(norm_rf + norm_dn))[:top_k]
 
+    # KNOWN ISSUE #1: sign(mean SHAP) is not a feature direction (baseline-dependent) -- see KNOWN_ISSUES.md
     mean_rf = shap_rf.mean(axis=0)
     mean_dn = shap_dn.mean(axis=0)
 
