@@ -14,7 +14,7 @@ TEX = os.path.join(MS, 'main_src_revised7.tex')
 GEN = os.path.join(MS, 'generated_revised7')
 TABLES = {'tab:nat-design': 'tab_nat_design.tex', 'tab:benchmark': 'tab_benchmark.tex', 'tab:spatial': 'tab_spatial.tex',
           'tab:augmentation': 'tab_augmentation.tex', 'tab:aug-diag': 'tab_augmentation_diag.tex',
-          'tab:shap': 'tab_shap_Superior.tex', 'tab:spatial-auc': 'tab_spatial_auc.tex', 'tab:prior': 'tab_nnpu_prior.tex',
+          'tab:spatial-auc': 'tab_spatial_auc.tex', 'tab:prior': 'tab_nnpu_prior.tex',
           'tab:aug-spatial': 'tab_augmentation_spatial.tex', 'tab:shap-cord': 'tab_shap_Cordillera.tex',
           'tab:shap-gren': 'tab_shap_Grenville.tex', 'tab:ablation': 'tab_ablation.tex', 'tab:margin': 'tab_margin.tex'}
 

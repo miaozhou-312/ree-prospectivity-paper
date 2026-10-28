@@ -165,8 +165,10 @@ python -m paper_analyses.52_parsa_maps --step figures   # figures_r7/fig_map_nat
 python -m paper_analyses.52_parsa_maps --step diagnostics   # numbers quoted with the national maps (Fig. 4)
 # Superior maps of XGBoost, bagging-PU and nnPU in the style of Fig. 10 (reuses Stage 29's grid inputs)
 (unset REE_FEATURESET; python -m paper_analyses.53_superior_maps_others)
-# figures that show the national design effects (Fig. 4) and the national maps' panels e-f
+# design-effect figure (Fig. 4) and the feature-space figure of the national negatives
 python -m paper_analyses.54_argument_figures
+# SHAP of XGBoost, bagging-PU and nnPU and the five-model SHAP figure
+(unset REE_FEATURESET; python -m paper_analyses.55_shap_others)
 (unset REE_FEATURESET; python -c "import importlib; importlib.import_module('paper_analyses.21_map_uncertainty').grid_features()"; python -m paper_analyses.29_production_fs3)
 python -m paper_analyses.06h_figures_tables_revised7              # generated_revised7/, figures_r7/
 python paper/splice_revised7.py                                  # table bodies into main_src_revised7.tex

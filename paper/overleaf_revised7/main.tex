@@ -232,7 +232,7 @@ Production models were fitted to all positives and the training background of ea
 
 \subsection{National scale}\label{sec:res-national}\label{sec:res-ladder}
 
-Rebuilt on our national data, the design of \citet{Parsa2024} gives a test AUC of 1.000 with both its random forest and its CNN (Table~\ref{tab:nat-design}), as high as the published 0.91--0.96 or higher. With one label per occurrence cell, random background and a realistic prevalence, the forest reaches an AUC of 0.903 and an AP of 0.292, and the CNN an AUC of 0.852 and an AP of 0.059. Negatives drawn from the ground least similar to the occurrences suffice on their own for a near-perfect score, because that ground is easy to reject: without any augmentation they give 0.998 (forest) and 0.996 (CNN) (Fig.~\ref{fig:design}a). Splitting augmented children at random leaves a sibling of 97\% of the test positives in the training set; with random negatives this gives the forest 0.997 and the CNN 0.937, against 0.923 and 0.880 when the four children of a cell are kept on the same side. Cosine-dissimilar negatives also make worse models: trained against them rather than against random negatives in an otherwise identical design, the AP at realistic prevalence falls from 0.190 to 0.113 for the forest and from 0.025 to 0.017 for the CNN, and both stay well below the models trained on our background (Fig.~\ref{fig:design}b).
+Rebuilt on our national data, the design of \citet{Parsa2024} gives a test AUC of 1.000 with both its random forest and its CNN (Table~\ref{tab:nat-design}), as high as the published 0.91--0.96 or higher. With one label per occurrence cell, random background and a realistic prevalence, the forest reaches an AUC of 0.903 and an AP of 0.292, and the CNN an AUC of 0.852 and an AP of 0.059. Negatives drawn from the ground least similar to the occurrences suffice on their own for a near-perfect score, because that ground is easy to reject: without any augmentation they give 0.998 (forest) and 0.996 (CNN). Splitting augmented children at random leaves a sibling of 97\% of the test positives in the training set; with random negatives this gives the forest 0.997 and the CNN 0.937, against 0.923 and 0.880 when the four children of a cell are kept on the same side (Fig.~\ref{fig:design}). Cosine-dissimilar negatives also make worse models: trained against them rather than against random negatives in an otherwise identical design, the AP at realistic prevalence falls from 0.190 to 0.113 for the forest and from 0.025 to 0.017 for the CNN.
 
 \begin{table}[t]
 \caption{The national S2-grid design of \citet{Parsa2024} and ours, with the random forest (1,000 trees) and the one-dimensional CNN of the original study on min--max inputs: mean test AUC and AP over 50 stratified 70/30 splits. Test set: occurrence share among the test points.}\label{tab:nat-design}
@@ -253,17 +253,22 @@ This study & one per occurrence cell (66) & 34,761 random cells $>$10~km from oc
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\textwidth]{figures_r7/fig_design_effects_r7.png}
-\caption{What the elements of the S2-grid design do, for the random forest and the CNN of \citet{Parsa2024} (mean over 50 stratified 70/30 splits). (a) Test AUC on the balanced test set for the design of \citet{Parsa2024} and for each of its two elements alone: negatives from the 5\% of cells least cosine-similar to the occurrences, with one label per occurrence cell; or the four children of each occurrence cell split at random, with random negatives. ``Neither'' combines one label per occurrence cell with random negatives. (b) AP of models trained on one label per occurrence cell against cosine-dissimilar negatives, random negatives or our training background, tested on held-out occurrence cells against a random 30\% of the evaluation sample.}\label{fig:design}
+\caption{Test AUC of the random forest and the CNN of \citet{Parsa2024} (mean over 50 stratified 70/30 splits of a balanced test set) in their S2-grid design, with random instead of cosine-dissimilar negatives, and with the four children of an occurrence cell also kept on the same side of the split, so that no test positive has a sibling in training.}\label{fig:design}
 \end{figure}
 
-\begin{figure}[p]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.9\textwidth]{figures_r7/fig_map_national_logprob_r7.png}\\[0.4em]
-\includegraphics[width=0.9\textwidth]{figures_r7/fig_map_national_extra_r7.png}
-\caption{National prospectivity of the 1,616,693 S2 level-12 cells under the two designs of Table~\ref{tab:nat-design}, each model fitted to all labels of its design: (a) random forest and (b) CNN in the design of \citet{Parsa2024}; (c) random forest and (d) CNN in ours. The classes of predicted probability are common to the four maps (share of the cells in brackets); occurrences by development class (Canada Atlas Lambert). White: outside the national domain. (e) Share of the cells at or above each probability threshold for the four models. (f) First two principal components of the min--max scaled inputs, fitted on 50,000 random cells, with the occurrence cells, the negatives of the design of \citet{Parsa2024} and a random 3,000 of our training background.}\label{fig:nat-maps}
+\includegraphics[width=\textwidth]{figures_r7/fig_map_national_logprob_r7.png}
+\caption{National prospectivity of the 1,616,693 S2 level-12 cells under the two designs of Table~\ref{tab:nat-design}, each model fitted to all labels of its design: (a) random forest and (b) CNN in the design of \citet{Parsa2024}; (c) random forest and (d) CNN in ours. The classes of predicted probability are common to the four maps (share of the cells in brackets); occurrences by development class (Canada Atlas Lambert). White: outside the national domain.}\label{fig:nat-maps}
 \end{figure}
 
-The two designs also produce very different maps (Fig.~\ref{fig:nat-maps}a--d): for both classifiers the design of \citet{Parsa2024} leaves more of Canada above every probability threshold from about 0.1 upwards (Fig.~\ref{fig:nat-maps}e). In the design of \citet{Parsa2024} the forest assigns a probability of 0.5 or more to 62.5\% of the cells and the CNN to 57.5\%. Their negatives come from the 5\% of cells least similar to the occurrences, a median 480~km from the nearest occurrence against 355~km for all cells, and so cover one corner of the input space (Fig.~\ref{fig:nat-maps}f): whatever does not resemble that corner is grouped with the occurrences, and for 61.6\% of 50,000 random cells the nearest training row is a positive. Against 34,761 random background cells the same forest gives 0.5 or more to 91 cells (less than 0.1\%), 66 of them the occurrence cells themselves and the rest within 31~km of an occurrence, and 64.4\% of the cells receive no positive vote from any of its 1,000 trees. The background now spans the input space, so the nearest training row is a positive for only 0.2\% of the random cells, and a fully grown tree votes for an occurrence only where a cell closely resembles one; the 2.8\% of cells at 0.01 or more lie a median 65~km from an occurrence, 79\% of them in the Cordillera, Grenville and Superior. The CNN, with the settings of \citet{Parsa2024} and our labels and background, is not selective: 36.9\% of the cells reach 0.5 and 10.7\% reach 0.9, against 48.6\% at 0.9 in their design. Its map singles out no part of the country and, like its ranking of held-out occurrences (AP 0.059), carries little information for targeting. Neither design gives calibrated probabilities, since both train at a balanced class ratio, so the maps compare designs rather than probabilities of mineralisation. With the same forest and inputs, however, the choice of negatives alone moves the high-probability area from most of Canada to the immediate surroundings of the known occurrences. The forest's probabilities are low at the provincial scale too: in Superior the production forest gives a probability of exactly zero to 80\% of the prediction grid (Section~\ref{sec:res-maps}), and its maps are to be read as rankings rather than as probabilities.
+The two designs also produce very different maps (Fig.~\ref{fig:nat-maps}). In the design of \citet{Parsa2024} the forest assigns a probability of 0.5 or more to 62.5\% of the cells and the CNN to 57.5\%. Their negatives come from the 5\% of cells least similar to the occurrences, a median 480~km from the nearest occurrence against 355~km for all cells, and so cover the margins of the input space (Fig.~\ref{fig:feature-space}): whatever does not resemble those margins is grouped with the occurrences, and for 61.6\% of 50,000 random cells the nearest training row is a positive. Against 34,761 random background cells the same forest gives 0.5 or more to 91 cells (less than 0.1\%), 66 of them the occurrence cells themselves and the rest within 31~km of an occurrence, and 64.4\% of the cells receive no positive vote from any of its 1,000 trees. The background now spans the input space, so the nearest training row is a positive for only 0.2\% of the random cells, and a fully grown tree votes for an occurrence only where a cell closely resembles one; the 2.8\% of cells at 0.01 or more lie a median 65~km from an occurrence, 79\% of them in the Cordillera, Grenville and Superior. The CNN, with the settings of \citet{Parsa2024} and our labels and background, is not selective: 36.9\% of the cells reach 0.5 and 10.7\% reach 0.9, against 48.6\% at 0.9 in their design. Its map singles out no part of the country and, like its ranking of held-out occurrences (AP 0.059), carries little information for targeting. Neither design gives calibrated probabilities, since both train at a balanced class ratio, so the maps compare designs rather than probabilities of mineralisation. With the same forest and inputs, however, the choice of negatives alone moves the high-probability area from most of Canada to the immediate surroundings of the known occurrences. The forest's probabilities are low at the provincial scale too: in Superior the production forest gives a probability of exactly zero to 80\% of the prediction grid (Section~\ref{sec:res-maps}), and its maps are to be read as rankings rather than as probabilities.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.75\textwidth]{figures_r7/fig_feature_space_r7.png}
+\caption{Where the negatives of the two designs lie in the inputs: the first two principal components of the min--max scaled national inputs (fitted on 50,000 random cells), with the 66 occurrence cells, the 264 negatives of the design of \citet{Parsa2024}, drawn from the 5\% of cells least cosine-similar to the occurrences, and a random 3,000 of the 34,761 cells of our training background.}\label{fig:feature-space}
+\end{figure}
 
 The national comparison concerns how labels and negatives are sampled; it does not show that one model should serve the whole country. Canadian carbonatites were emplaced in several episodes from about 2.68~Ga onwards \citep{Rukhlov2010} and in different settings, from the Archean Superior craton to the Cordilleran Orogen, the Grenville orogen and the St.~Lawrence rift system \citep{Groulier2020,Neron2018}, so the same evidence layer need not stand for the same process everywhere: a mappable criterion is only as useful as it is representative of the process it stands for, and its significance changes with the scale at which the critical processes operate \citep{McCuaig2010}. A model is, moreover, reliable only where its inputs resemble those it was trained on \citep{Meyer2021}. We therefore model the Superior, Cordilleran and Grenville occurrences separately (Section~\ref{sec:res-provinces}) and use the provincial models to test whether a model trained in one province applies to another (Section~\ref{sec:res-transfer}).
 
@@ -428,37 +433,15 @@ The provinces are distinct domains in the inputs. A random forest separates the 
 
 \subsubsection{Model interpretation}\label{sec:res-shap}
 
-With the rank-based direction rule, RF and DevNet agree on the sign of the effect for all ten of their jointly most important features in each province (Table~\ref{tab:shap}; Appendix~\ref{app:shap}). Read from the sign of the mean SHAP value instead, the two models would appear to disagree on many of these features, an artefact of the two explainers' different baselines (Section~\ref{sec:shap}).
+With the rank-based direction rule, RF and DevNet agree on the sign of the effect for all ten of their jointly most important features in each province (Fig.~\ref{fig:shap}; Appendix~\ref{app:shap}). Read from the sign of the mean SHAP value instead, the two models would appear to disagree on many of these features, an artefact of the two explainers' different baselines (Section~\ref{sec:shap}).
 
-The two models agree on directions but weight the evidence differently (Fig.~\ref{fig:shap}). In Superior, DevNet ranks five geological classes of the cell first: extrusive (greenstone) lithology, an age contact within the cell and alkalic intrusive lithology raise the score, and Archean era and tonalite lower it; it then ranks proximity to regional greenstone, LAB depth and Bouguer GLCM correlation (lower values more prospective). RF ranks the horizontal-gradient magnitude of deep-source magnetics first (lower values more prospective), then LAB depth, proximity to regional greenstone, fault proximity and the first vertical derivative of the reduced-to-pole magnetics, and gives the geological classes low ranks (22nd--41st of 57). Both models score ground as more prospective where the LAB is shallower, close to greenstone belts and faults, where TMI is high, and farther from deep magnetic worms. In Cordillera both models treat Mesozoic terranes and ground far from high-grade metamorphic units as unfavourable and Proterozoic terranes as favourable. In Grenville both rank deep-source magnetics and the GLCM contrast of the Bouguer THD tilt among their five most important features, but given the weak predictive skill there these attributions describe the signal the models attempted to use rather than a reliable control.
+The two models agree on directions but weight the evidence differently (Fig.~\ref{fig:shap}a, b). In Superior, DevNet ranks five geological classes of the cell first: extrusive (greenstone) lithology, an age contact within the cell and alkalic intrusive lithology raise the score, and Archean era and tonalite lower it; it then ranks proximity to regional greenstone, LAB depth and Bouguer GLCM correlation (lower values more prospective). RF ranks the horizontal-gradient magnitude of deep-source magnetics first (lower values more prospective), then LAB depth, proximity to regional greenstone, fault proximity and the first vertical derivative of the reduced-to-pole magnetics, and gives the geological classes low ranks (22nd--41st of 57). Both models score ground as more prospective where the LAB is shallower, close to greenstone belts and faults, where TMI is high, and farther from deep magnetic worms. XGBoost and bagging-PU lead with the same inputs as RF, the horizontal-gradient magnitude of deep-source magnetics, LAB depth and distance to regional greenstone among their first four, with the same directions as RF and DevNet, whereas nnPU, the weakest model of the benchmark, relies mainly on lithology classes of the cell (Fig.~\ref{fig:shap}c--e). In Cordillera both models treat Mesozoic terranes and ground far from high-grade metamorphic units as unfavourable and Proterozoic terranes as favourable. In Grenville both rank deep-source magnetics and the GLCM contrast of the Bouguer THD tilt among their five most important features, but given the weak predictive skill there these attributions describe the signal the models attempted to use rather than a reliable control.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figures_r7/fig_shap_superior_r2.png}
-\caption{SHAP summaries for Superior: (a) DevNet (DeepSHAP on its quantile-transformed inputs, mean over the five ensemble members) and (b) RF (TreeSHAP). Each point is one explained sample; colour is the feature value. SHAP magnitudes are not comparable between models (unbounded anomaly score vs probability).}\label{fig:shap}
+\includegraphics[width=\textwidth]{figures_r7/fig_shap_superior_r7.png}
+\caption{SHAP summaries of the production models for Superior, ten most important features each: (a) DevNet (DeepSHAP on its quantile-transformed inputs, mean over the five ensemble members), (b) RF (TreeSHAP), (c) XGBoost (TreeSHAP, log-odds), (d) bagging-PU (TreeSHAP, mean over the 200 trees) and (e) nnPU (DeepSHAP, as for DevNet). Each point is one explained sample; colour is the feature value. SHAP magnitudes are not comparable between models (different output scales).}\label{fig:shap}
 \end{figure}
-
-\begin{table}[t]
-\caption{Superior: the ten jointly most important features (mean $|$SHAP$|$, normalised per model). Rank among 57 features; direction $\uparrow$/$\downarrow$: higher values (or presence) raise/lower the score, with Spearman $\rho$ between feature value and SHAP value.}\label{tab:shap}
-\scriptsize
-\setlength{\tabcolsep}{2.5pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
-\toprule
-Feature & DevNet rank & DevNet dir. & RF rank & RF dir. \\
-\midrule
-Deep-source RTP HGM & 10 & $\downarrow$ (-0.94) & 1 & $\downarrow$ (-0.73) \\
-Lith.: Igneous Extrusive & 1 & $\uparrow$ (+0.53) & 41 & $\uparrow$ (+0.53) \\
-LAB depth & 7 & $\downarrow$ (-0.93) & 2 & $\downarrow$ (-0.89) \\
-Distance to regional greenstone & 6 & $\downarrow$ (-0.88) & 3 & $\downarrow$ (-0.92) \\
-Age contact (H3 cell) & 2 & $\uparrow$ (+0.50) & 37 & $\uparrow$ (+0.50) \\
-Lith.: Igneous Intrusive Alkalic & 3 & $\uparrow$ (+0.34) & 22 & $\uparrow$ (+0.34) \\
-DRTP 1VD & 13 & $\uparrow$ (+0.95) & 5 & $\uparrow$ (+0.90) \\
-TMI & 12 & $\uparrow$ (+0.93) & 7 & $\uparrow$ (+0.91) \\
-Era: Archean & 4 & $\downarrow$ (-0.39) & 24 & $\downarrow$ (-0.39) \\
-Fault proximity & 18 & $\uparrow$ (+0.88) & 4 & $\uparrow$ (+0.87) \\
-\botrule
-\end{tabular*}
-\end{table}
 
 \subsubsection{Prospectivity maps and external validation}\label{sec:res-maps}
 
@@ -658,7 +641,7 @@ Blocks & Model & Augmentation & AP \\
 \section{Interpretation in the contrasting provinces}\label{app:shap}
 
 \begin{table}[!h]
-\caption{As Table~\ref{tab:shap}, Cordillera (61 features).}\label{tab:shap-cord}
+\caption{Cordillera: the ten jointly most important features of DevNet and RF (mean $|$SHAP$|$, normalised per model). Rank among 61 features; direction $\uparrow$/$\downarrow$: higher values (or presence) raise/lower the score, with Spearman $\rho$ between feature value and SHAP value.}\label{tab:shap-cord}
 \footnotesize
 \begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
 \toprule
@@ -679,7 +662,7 @@ Distance to regional age contact & 7 & $\uparrow$ (+0.95) & 14 & $\uparrow$ (+0.
 \end{table}
 
 \begin{table}[!h]
-\caption{As Table~\ref{tab:shap}, Grenville (66 features).}\label{tab:shap-gren}
+\caption{Grenville: the ten jointly most important features of DevNet and RF (mean $|$SHAP$|$, normalised per model). Rank among 66 features; direction $\uparrow$/$\downarrow$: higher values (or presence) raise/lower the score, with Spearman $\rho$ between feature value and SHAP value.}\label{tab:shap-gren}
 \footnotesize
 \begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
 \toprule
