@@ -44,13 +44,9 @@ python -m ipykernel install --user --name mpm_env --display-name "Python (mpm_en
 ```
 
 **2. Data.** Download the layers listed in [`data/README.md`](data/README.md)
-into a `dataset/` folder next to this repository, then:
-
-```bash
-mkdir -p ../dataset/outlines
-cp data/outlines/*.geojson ../dataset/outlines/
-cp data/labels/*_REE_deposits_deduped_2.0km.csv .
-```
+into a `dataset/` folder next to this repository. The deposit tables and
+study-area outlines are read directly from `data/labels/` and
+`data/outlines/`; nothing needs to be copied.
 
 Eleven of the seventeen rasters are proprietary Getech products and are not
 distributed; see [§2.2 of the data guide](data/README.md#22-proprietary-layers-getech).

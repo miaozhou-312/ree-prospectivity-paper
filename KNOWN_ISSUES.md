@@ -1,8 +1,8 @@
 # Known issues
 
 Problems found while packaging the code for publication (October 2026).
-None is fixed yet: the code, the notebook and its stored outputs still
-match the thesis run. Each code location carries a one-line
+Only #5 is fixed (on branch `paper/nrr-superior-analyses`); for the others the
+code, the notebook and its stored outputs still match the thesis run. Each code location carries a one-line
 `KNOWN ISSUE #n` comment pointing here.
 
 | # | Issue | Affects results? | Affects the paper text? |
@@ -11,6 +11,28 @@ match the thesis run. Each code location carries a one-line
 | 2 | Table 1 lists a geological-province (cratonic-margin) proximity layer that no run ever used | No (the runs are internally consistent) | Yes — Table 1 and the feature count |
 | 3 | Provenance of `Faults_Canada.geojson` is unverified | No | Possibly — the data source credited in Table 1 |
 | 4 | `explain_rf` silently returns wrong values with `shap` < 0.45 | No (pinned `shap==0.46.0` is correct) | No |
+| 5 | `src/models/devnet.py` drew DevNet's reference pool `_REF` from torch's unseeded start-up generator — **fixed** on branch `paper/nrr-superior-analyses` | DevNet results via `src/` varied run to run (median AP ±0.003, single repeats up to ±0.03); the notebook is unaffected | No — the journal-paper numbers were produced after the fix |
+
+---
+
+## 5. DevNet reference pool was unseeded in `src/` (fixed)
+
+**Where.** `src/models/devnet.py`, module level: `_REF = torch.randn(50000)`.
+
+**What was wrong.** The deviation loss standardises scores against the mean
+and standard deviation of `_REF`. In `src/` this tensor is created when the
+module is imported, before any caller can seed torch, and torch's initial
+seed differs in every process (`torch.initial_seed()` changes run to run).
+The reference mean therefore moved (e.g. 0.0036 vs 0.0073 in two runs), and
+identical `src/` runs of the Superior DevNet benchmark gave median AP 0.2732
+and 0.2756, with single repeats differing by up to 0.03; single-threaded
+runs were equally affected, so thread scheduling was not the cause. The
+end-to-end notebook seeds torch in Section 1a before Section 8 builds
+`_REF`, so its stored outputs were reproducible.
+
+**Fix (applied).** Draw `_REF` from a dedicated generator:
+`torch.randn(50000, generator=torch.Generator().manual_seed(42))`.
+Every `paper_analyses/` result was regenerated after the fix.
 
 ---
 

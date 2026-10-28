@@ -1,0 +1,763 @@
+%% Source of the manuscript. paper/build.py splices the generated table
+%% bodies (%%GEN:<name>%% lines, from paper_analyses/06_figures_tables.py)
+%% into manuscript.tex, which is the single file submitted to the journal.
+\documentclass[pdflatex,sn-apa]{sn-jnl}
+
+\usepackage{graphicx}%
+\usepackage{multirow}%
+\usepackage{amsmath,amssymb,amsfonts}%
+\usepackage{amsthm}%
+\usepackage{mathrsfs}%
+\usepackage[title]{appendix}%
+\usepackage{xcolor}%
+\usepackage{textcomp}%
+\usepackage{manyfoot}%
+\usepackage{booktabs}%
+\usepackage{algorithm}%
+\usepackage{algorithmicx}%
+\usepackage{algpseudocode}%
+\usepackage{listings}%
+
+\raggedbottom
+
+\begin{document}
+
+\title[Semi-supervised REE prospectivity under extreme label scarcity]{Semi-supervised deep anomaly detection for carbonatite-hosted REE prospectivity under extreme label scarcity: spatially validated benchmarks, generative augmentation and a validation-protocol audit in the Superior Province, Canada}
+
+%% TODO(author): confirm the author list, order and affiliations; the
+%% thesis was supervised by R. Smail (Getech Group plc), C. Nathwani and
+%% R. Bell (Imperial College London). Confirm the corresponding e-mail.
+\author*[1]{\fnm{Miaozhou} \sur{Tang}}\email{mt125@ic.ac.uk}
+
+\affil*[1]{\orgdiv{Department of Earth Science and Engineering}, \orgname{Imperial College London}, \orgaddress{\street{South Kensington Campus}, \city{London}, \postcode{SW7 2AZ}, \country{United Kingdom}}}
+
+\abstract{Data-driven prospectivity mapping of carbonatite-hosted rare earth element (REE) deposits must learn from a few tens of known occurrences and no confirmed barren ground. We test whether a semi-supervised Deviation Network (DevNet), which treats unexplored ground as unlabelled, outperforms Random Forest (RF) and two positive--unlabelled learners in the Superior Province, Canada (15 occurrences), with the Cordilleran Orogen and Grenville Province as contrasting cases. All models share features, background points and folds and are compared by out-of-fold average precision (AP). Under random cross-validation the Superior models are indistinguishable (AP 0.27 vs 0.21 for RF; $p = 0.37$), but under spatially blocked cross-validation RF's AP falls to 0.09--0.13 while DevNet's remains at 0.21--0.24 (200~km blocks: $\Delta$AP $= +0.22$, 95\% interval $[+0.03, +0.43]$). In the Cordilleran and Grenville provinces, where tree models lead under random splits, a Random Forest given only coordinates matches or beats them, so that lead is location memorisation rather than geology. Fold-safe synthetic positives from jitter, SMOTE or a Wasserstein GAN gave DevNet no gain and RF only small, inconsistent gains. Rebuilding a published validation design, in which S2 child cells of one occurrence are split at random between training and test sets, yields test AUC of about 1 in every province and inflates AUC by up to 0.37 where real skill is weakest. With corrected SHAP directions the two models agree on 29 of 30 leading drivers, and DevNet's highest-ranked ground follows the Kapuskasing Structural Zone, placing the untrained Clay-Howells resource in the top 0.1\% of the province. Under extreme label scarcity, the validation protocol decides most reported differences.}
+
+\keywords{Mineral prospectivity mapping, Rare earth elements, Carbonatite, Positive--unlabelled learning, Deviation network, Spatial cross-validation, Data leakage, Generative adversarial network}
+
+\maketitle
+
+%% ===================================================================
+\section{Introduction}\label{sec:intro}
+
+Rare earth elements (REEs) are critical to low-carbon energy, electronics and defence technologies, yet economic concentrations are geologically uncommon \citep{Wang2020}. Most REE resources are hosted by carbonatites and associated alkaline intrusions, whose distinctive but partly overlapping geophysical and geochemical signatures make them natural targets for data-driven mineral prospectivity mapping (MPM; \citealp{Verplanck2014,Simandl2018}). In Canada, however, confirmed carbonatite-hosted REE occurrences are few and spatially clustered (Fig.~\ref{fig:study}): after near-duplicates are merged, a single geological province holds between about ten and thirty of them.
+
+Two properties of this problem undermine standard supervised classification. First, positives are extremely scarce: mineralisation is a rare event \citep{Xiong2018}, known occurrences are only a partial and biased sample of the mineral system \citep{Coolbaugh2007,Parsa2021,Zuo2021}, and under $k$-fold cross-validation each fold holds only a handful of them, so any estimate is dominated by which occurrences happen to be held out. Second, there are no true negatives. Ground without a recorded occurrence is unexplored rather than barren, and designating it negative is an arbitrary modelling choice whose outcome depends on which background points are drawn \citep{Zuo2020}. Together these properties motivate positive--unlabelled (PU) and semi-supervised anomaly-detection formulations, in which mineralised sites are treated as rare anomalies relative to a large, mostly barren but unlabelled population \citep{Chen2019,Xiong2016,Xiong2021,Bekker2020,Luo2026}.
+
+The Deviation Network (DevNet; \citealp{Pang2019}) is a semi-supervised deep anomaly detector that learns an anomaly score from a few labelled anomalies and a large unlabelled pool, pulling the scores of unlabelled data towards a Gaussian reference while pushing labelled anomalies a fixed margin above it. \citet{Luo2026} adapted it to MPM (DEEP-SEAM). Whether such a model outperforms well-tuned discriminative baselines when positives number in the low tens has not been tested under evaluation designs that control for the specific ways in which small, clustered label sets inflate scores. The closest prior study, a national-scale model of Canadian carbonatite-hosted REE $\pm$ Nb deposits \citep{Parsa2024}, reported test AUCs of 0.91--0.96 with random forests and one-dimensional convolutional networks. Its labels were augmented by replacing each occupied S2 grid cell with its four child cells, its negatives were drawn from the ground least similar to the positives, and it was evaluated by stratified random 70/30 splits of the augmented labels. A follow-up study recommended synthetic labels generated by generative adversarial networks (GANs) for the same commodity \citep{Parsa2025}. Each of these design choices can make the held-out test easier than prospecting new ground.
+
+This study benchmarks DevNet for regional carbonatite-hosted REE prospectivity in the Superior Province of the Canadian Shield, the province in which labels are scarcest relative to area and in which the MSc study on which this paper builds found DevNet's average precision to exceed that of RF on a single cross-validation split. The Cordilleran Orogen and Grenville Province are modelled with the identical pipeline as contrasting cases. We ask four questions: (i) does DevNet outperform RF and established PU learners once every model sees the same data and folds and uncertainty is quantified? (ii) does any advantage survive, or grow, under spatially blocked validation that mimics prospecting unexplored ground? (iii) can synthetic positives from interpolation or a GAN compensate for label scarcity when they are kept strictly out of the evaluation? and (iv) how much of a high reported AUC can the validation design itself produce? We close by interpreting the models with SHapley Additive exPlanations (SHAP), using a corrected rule for the direction of each feature's effect, and by testing the Superior predictions against the mapped Kapuskasing Structural Zone.
+
+%% ===================================================================
+\section{Geological setting and data}\label{sec:data}
+
+\subsection{Carbonatite-hosted REE systems and their geophysical expression}\label{sec:mineral-system}
+
+Carbonatites occur predominantly in Precambrian cratonic areas, and individual provinces record repeated emplacement over hundreds of millions of years, implying long-lived, episodically reactivated trans-lithospheric pathways \citep{Woolley2012}. A component of their REE endowment is attributed to subcontinental lithospheric mantle refertilised by REE- and CO$_2$-rich metasomatic fluids \citep{Hou2023,Yaxley2021}. Each element of this source--transport--trap system has a mappable geophysical proxy (Fig.~\ref{fig:mineral-system}). Depth to the lithosphere--asthenosphere boundary (LAB) indexes the thickness and edge geometry of the cratonic root that hosts the fertile mantle source, which exerts first-order control on magmatic ore systems \citep{Griffin2013,Groves2021,Hoggard2020}; Moho depth indexes crustal thickness; and proximity to faults and to the loci of maximum horizontal gravity and magnetic gradient (``worms''; \citealp{Hornby1999}) proxies the structures that channel ascending melts. At the emplacement site, dense and magnetic alkaline--carbonatite complexes produce positive gravity anomalies and intense circular to annular magnetic anomalies \citep{Thomas2016,Drenth2014}. Grey-level co-occurrence matrix (GLCM) textures summarise the local two-dimensional heterogeneity produced by such concentric patterns without assuming a target diameter \citep{Cooper2005,HallBeyer2017}, unlike explicit radial-symmetry detectors tuned to ring-complex size \citep{Aranha2021}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/fig_mineral_system.png}
+\caption{Source--transport--trap model for carbonatite-hosted REE systems and its geophysical proxies. (a) Source: refertilised subcontinental lithospheric mantle near the LAB at the craton margin, indexed by LAB depth and margin proximity; panel modified after \citet{Hou2023}. (b) Transport along trans-lithospheric faults, indexed by fault and worm proximity and Moho depth; modified after \citet{Yaxley2021}. (c) Trap: GLCM texture response of a ring-like anomaly and of random noise.}\label{fig:mineral-system}
+\end{figure}
+
+\subsection{Study areas}\label{sec:areas}
+
+The three study areas are the Superior Province, the Grenville Province and the Cordilleran Orogen as outlined on the Geological Map of Canada \citep[Map 1860A;][]{Wheeler1996}. Each is modelled independently because carbonatite-hosted occurrences of the Phanerozoic, accreted Cordillera are geophysically distinct from those of the Canadian Shield \citep{Parsa2024}, so a single cross-terrane model would not be expected to transfer.
+
+The Superior Province is the world's largest Archean craton. Carbonatite--alkaline magmatism in the Canadian Shield clusters into episodes at about 2.68~Ga, 1.90--1.88~Ga and 1.16--1.08~Ga \citep{Rukhlov2010}, and in the Superior Province many of the complexes are aligned along crustal-scale structures, most prominently the Kapuskasing Structural Zone \citep[KSZ;][]{Percival1994,Gittins1967}. The 15 Superior occurrences used here (Fig.~\ref{fig:study}b) comprise a cluster around the Montviel and Lac Shortt carbonatites in the eastern Abitibi region of Qu\'ebec (Deposit/Prospect and Showing class) and occurrences dispersed across the southern and western Superior Province, including Nemegosenda Lake, Lackner Lake, Kapuskasing, Martison Lake, Prairie Lake and Carb Lake. The Superior Province thus combines the fewest occurrences per unit area of the three provinces with a spatial structure, one tight cluster plus scattered singletons, in which a model can either learn the cluster or learn what the scattered occurrences have in common.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.55\textwidth]{figures/fig_study_canada.jpg}\hfill
+\includegraphics[width=0.42\textwidth]{figures/fig_study_superior.jpg}
+\caption{(a) Carbonatite-hosted REE occurrences in Canada and the three modelled provinces; coloured areas are the sampleable domains. (b) The 15 deduplicated Superior occurrences used as positives, by development class.}\label{fig:study}
+\end{figure}
+
+\subsection{Occurrence labels}\label{sec:labels}
+
+Positive labels were compiled from the carbonatite-hosted records of the USGS global REE occurrence database \citep{Orris2018} and the occurrence table of \citet{Parsa2024}. Alkaline-hosted occurrences were excluded after a preliminary leave-block-out classification showed them to be geophysically separable from carbonatite-hosted ones. Records within 2~km of each other were merged by single linkage, so that drill holes or zones of one deposit, listed once or in both sources, count once; without this step near-identical points from one deposit fall into both training and validation folds. Merging and the data-coverage filter (Section~\ref{sec:domain}) reduced 21, 13 and 51 pooled records to 15 (Superior), 12 (Grenville) and 27 (Cordillera) positives. Each positive keeps the development class of \citet{Parsa2024}: Deposit/Prospect, Showing or Occurrence (Superior: 3, 4 and 8).
+
+\subsection{Evidence layers}\label{sec:layers}
+
+Table~\ref{tab:layers} lists the evidence layers. Seventeen national rasters cover the trap and the deep-architecture components: Bouguer gravity and its derivatives and filtered versions, total magnetic intensity and its differential reduction to the pole with derivatives \citep{Jobin2017,Miles2016}, together with long-wavelength gravity and magnetics, LAB and Moho depth from the Tri-National Critical Minerals Mapping Initiative release \citep{McCafferty2023}. Eleven of the gravity and magnetic grids are processed products supplied by Getech Group plc; four of these are gridded versions of the public Natural Resources Canada compilations and seven are standard derivatives of them (Table~\ref{tab:layers}). Two line layers (ancient passive margins, \citealp{BradleyDC2008}; faults) and four point layers (shallow and deep gravity and magnetic worms; \citealp{McCafferty2023}) enter as normalised proximities, and geological era and a four-class lithology grouping are taken from an H3 (resolution 7) hexagonal grid attributed from \citet{Wheeler1996}. GLCM contrast, homogeneity, energy and correlation were computed in 9$\times$9-pixel windows on the Bouguer anomaly, its 40~km high-pass, the reduced-to-pole magnetics and the total magnetic intensity. In total each point carries 48 candidate features. Whole-rock geochemistry was not used because its coverage is too sparse to give a value at every map cell. The province polygons of \citet{Wheeler1996} define the study areas only; no distance-to-province-boundary feature was used.
+
+\begin{table}[t]
+\caption{Evidence layers, grouped by mineral-system component. Native resolution in brackets. All rasters were sampled at points in their native projection and resolution.}\label{tab:layers}
+\footnotesize
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}p{2.4cm}p{5.6cm}p{3.5cm}}
+\toprule
+Component & Layer(s) & Source \\
+\midrule
+Source / lithosphere & Depth to LAB (0.1$^\circ$); Moho depth (0.25$^\circ$) & \citet{McCafferty2023} \\
+Deep architecture & Bouguer gravity upward-continued 30~km and its horizontal-gradient magnitude (HGM) (0.031$^\circ$); long-wavelength (deep-source) RTP magnetics and its HGM (0.02$^\circ$) & \citet{McCafferty2023} \\
+%% TODO(author): confirm the provenance of the fault compilation (KNOWN_ISSUES.md #3)
+Transport & Proximity to faults; to ancient passive margins; to shallow and deep gravity and magnetic worms & \citet{McCafferty2023}; \citet{BradleyDC2008} \\
+Trap: gravity & Bouguer anomaly (BA), BA first vertical derivative, BA total horizontal derivative (THD) (2~km) & \citet{Jobin2017}; gridded by Getech \\
+ & BA THD tilt, BA 40~km and 100~km high-pass (4th-order Butterworth) (2~km) & Getech derivatives \\
+Trap: magnetics & Total magnetic intensity (TMI) (0.01$^\circ$) & \citet{Miles2016}; gridded by Getech \\
+ & Differential reduction to pole (DRTP), DRTP 1VD, DRTP THD, DRTP THD tilt (0.01$^\circ$) & Getech derivatives \\
+Anomaly form & GLCM contrast, homogeneity, energy, correlation (9$\times$9 window) on BA, BA 40~km high-pass, DRTP, TMI & this study \\
+Host terrane & Geological era (5 classes) and lithology (4 classes), one-hot, H3 resolution 7 & \citet{Wheeler1996} \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{Sampleable domain and background}\label{sec:domain}
+
+Rasters were clipped to each study-area outline buffered outward by one GLCM window radius (8~km), so that windows near the boundary read real data, and sampling and prediction were restricted to the domain where every layer holds data and every texture window is computable. This domain covers 98.6\% of the Superior, 97.2\% of the Grenville and 73.5\% of the Cordilleran outline; one Cordilleran occurrence (Lempriere) falls outside it and was dropped. Background candidates are the nodes of a 0.1$^\circ$ grid inside the domain and more than 10~km from any known occurrence (19,371 in Superior). From these, two disjoint pools were drawn once per region at random: an evaluation background of 3,000 points and a training background of 5,000 points. Every model in this study is trained on the positives of its training fold plus the same 5,000 training-background points and scored on the held-out positives plus the same evaluation background. The prevalence in the scored pool is therefore 15/3,015 $\approx$ 0.5\% in Superior, which is the AP of a random ranking.
+
+%% ===================================================================
+\section{Methods}\label{sec:methods}
+
+Figure~\ref{fig:workflow} summarises the workflow. Code for every analysis, including the exact numbers in every table, is available in the repository listed under Code availability.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_workflow.png}
+\caption{Workflow. All models are trained on the same positives and the same 5,000 background points and scored on the same folds; only the treatment of the background differs.}\label{fig:workflow}
+\end{figure}
+
+\subsection{Feature pruning}\label{sec:pruning}
+
+The 48 features include many collinear geophysical derivatives. Within each region, features were clustered hierarchically on $1-|\rho_{\mathrm{S}}|$ (Spearman correlation, average linkage) and cut at $|\rho_{\mathrm{S}}| = 0.7$, keeping one representative per cluster chosen by lowest missing rate and then highest variance \citep{Dormann2013}. The rule never sees labels and therefore cannot leak information across folds. It leaves 35 features in Superior and 33 in Cordillera and Grenville; this pruned set is the primary feature set, and results for the full set are given in Appendix~\ref{app:full}.
+
+\subsection{Models}\label{sec:models}
+
+All four models see the same rows and differ only in how they treat the training background.
+
+\textbf{Random Forest} (RF; \citealp{Breiman2001}) is the discriminative baseline: positives versus training background labelled 0, 300 trees, $\sqrt{p}$ features per split, balanced class weights, inside a pipeline that fits median imputation and standardisation on the training fold only. With roughly 12 training positives against 5,000 background points, most held-out points receive a predicted probability of exactly zero (82\% of the Superior evaluation background and 2 of 15 held-out positives in one representative split), so the pooled AUC depends on which trees happen to vote for a given held-out occurrence. Changing only the RF random seed moved the single-split Superior AUC between 0.889 and 0.985 while AP varied far less (0.19--0.29). We therefore vary the RF seed across folds so that this variance enters the reported intervals, and report the fixed-seed configuration of the thesis alongside.
+
+\textbf{DevNet} \citep{Pang2019} maps each standardised feature vector $\mathbf{x}$ to a scalar score $\phi(\mathbf{x})$ through one hidden ReLU layer with dropout. The deviation $d(\mathbf{x}) = (\phi(\mathbf{x}) - \mu_R)/\sigma_R$ is measured against the mean and standard deviation of a fixed reference sample of 50,000 standard-normal draws, and the loss
+\begin{equation}
+L = (1-y)\,|d(\mathbf{x})| + y\,\max\{0,\, a - d(\mathbf{x})\}
+\end{equation}
+pulls unlabelled background ($y=0$) towards the reference and pushes positives ($y=1$) beyond a margin $a = 5$. A sensitivity analysis over $a \in \{2,3,5,8\}$ changed AP by at most 0.03 in any region. Training uses label-balanced mini-batches of 32 (positives resampled with replacement), Adam \citep{Kingma2014} with weight decay, cosine learning-rate annealing over 300 epochs and gradient clipping. Network capacity was set a priori by positive count (64 hidden units, dropout 0.3, weight decay $10^{-4}$ in Cordillera; 32, 0.4 and $10^{-3}$ in Superior and Grenville) rather than tuned, because a search over a few tens of positives fits noise. Each fold score is the rank average of five restarts with different seeds. Three variants of DevNet that were examined after the main analysis, prompted by the diagnostics of Section~\ref{sec:res-geography}, are reported separately in Appendix~\ref{app:sensitivity} and are not part of the main comparison.
+
+\textbf{Bagging-PU} \citep{Mordelet2014} trains 200 fully grown decision trees, each on all training positives and an equal-sized bootstrap sample of the unlabelled background, and averages their outputs. It is the standard tree-based PU learner and the closest PU analogue of RF.
+
+\textbf{nnPU} \citep{Kiryo2017} minimises the non-negative PU risk with the sigmoid loss, using exactly DevNet's network, optimiser, epochs and five-restart ensemble, so that DevNet versus nnPU isolates the loss function. nnPU requires the class prior $\pi = P(y=1)$ in the unlabelled population; we use $\pi = 0.01$ and report $\pi \in \{0.005, 0.02, 0.05\}$ for Superior. The widely used calibration approach of \citet{Elkan2008} is not included because under its assumptions the calibrated output is a monotone transform of the positive-versus-background classifier, so its ranking, and every rank metric reported here, equals RF's.
+
+\subsection{Evaluation protocol}\label{sec:protocol}
+
+With three or four positives per validation fold, per-fold AUC is unstable and can be undefined, so out-of-fold scores are pooled \citep{BradleyAP1997}: each held-out point is scored once per repeat, scores are converted to within-fold percentile ranks so that folds are comparable, and a single AUC and average precision (AP) are computed over all folds. Pooling carries a small known negative bias in AUC \citep{Airola2019,Parker2007}. We emphasise AP because, at 0.5\% prevalence, it reflects the practical task of concentrating occurrences into a small search area, whereas AUC is dominated by the bulk of easily rejected background \citep{Saito2015}. Exploration efficiency is also shown as capture-rate curves: the share of held-out occurrences ranked within a given top fraction of the scored pool \citep{Chung2003,Agterberg2005}. Because the evaluation background is a random sample of the domain, this fraction approximates search area. Because unexplored background may host undiscovered occurrences, all metrics are conservative.
+
+\textbf{Random cross-validation.} Repeated stratified 5-fold cross-validation with six repeats gives six pooled AUC and AP values per model, reported as the median and the range over repeats (labelled 95\% interval). The thesis reported a single 5-fold split; across the six splits used here the Superior DevNet AP ranges from 0.21 to 0.36 with nothing else changed, which is why a single split cannot carry a model comparison. All models use identical splits, so they can be compared pairwise.
+
+\textbf{Spatially blocked cross-validation.} Random folds can hold out an occurrence a few kilometres from a training occurrence. Following \citet{Roberts2017} and \citet{Valavi2019}, labelled points were assigned to square blocks of 50, 100 or 200~km side in Canada Atlas Lambert (EPSG:3978), whole blocks were held out together using stratified group 5-fold splitting (fewer folds if fewer blocks contain positives), and every training-background point falling inside a held-out block was removed from training for that fold. Each of six repeats uses a random offset of the block grid.
+
+\textbf{Paired comparisons.} For each pair of models we average each point's out-of-fold rank over the six repeats and draw 5,000 stratified bootstrap resamples of positives and background \citep{Efron1993}, reporting the difference in AP and AUC with its 95\% percentile interval, the one-sided proportion of resamples in which the difference is $\leq 0$ (denoted $p$), and the number of the six repeats in which the first model has the higher AP. With 12--27 positives these tests have little power, and with several comparisons the nominal $p$ values should be read as descriptive. Averaging ranks over repeats also acts as a small ensemble, which can interact with the quantity being compared; for the augmentation experiments, where this matters, we therefore report the paired per-repeat AP difference on identical folds instead.
+
+\textbf{Geography-only and smooth baselines.} To separate geological signal from spatial memorisation, an RF was trained on the projected coordinates of each point only, with no evidence layer, under the same folds and both protocols. Its score measures how much of a protocol's reported skill can be obtained simply by remembering where the training occurrences lie. An L2-regularised logistic regression with balanced class weights on the pruned features serves as a smooth, essentially linear discriminative reference for DevNet.
+
+\subsection{Synthetic positives}\label{sec:augmentation}
+
+To test whether synthetic positives can compensate for label scarcity, each training fold's real positives were augmented with $m \times n_{\mathrm{pos}}$ synthetic positives ($m = 1, 3, 10$) before RF and DevNet were retrained; the held-out positives were always real. Three generators were compared, all fitted in the standardised feature space of the training fold only: Gaussian jitter of real positives ($\sigma = 0.1$ standard deviations); SMOTE-style interpolation between a positive and one of its three nearest positive neighbours \citep{Chawla2002}; and a tabular Wasserstein GAN with gradient penalty \citep[WGAN-GP;][]{Goodfellow2014,Arjovsky2017,Gulrajani2017} with an eight-dimensional latent input, two hidden layers of 64 units in generator and critic, five critic updates per generator update, gradient-penalty weight 10 and 2,000 generator updates, trained on the fold's 12 positives. Synthetic terrane dummies were snapped back to valid one-hot values. To see what the generators produce, each was also fitted to all 15 Superior positives and 150 samples were characterised by the distance to the nearest real positive divided by the median nearest-neighbour distance among real positives (a value near 0 indicates copying), by the share of samples whose nearest labelled neighbour is a positive rather than a background point, and by their DevNet score percentile.
+
+\subsection{Validation-protocol audit}\label{sec:audit-methods}
+
+To quantify how the validation design of \citet{Parsa2024} behaves on these data, we rebuilt it with the same S2 geometry library. Each occurrence's level-12 S2 cell (about 4.5~km$^2$) was replaced by its four level-13 child cells, and all features were extracted at the child-cell centres with the same pipeline. An equal number of negatives was drawn either from the 5\% of background candidates with the lowest mean cosine similarity to the augmented positives in min--max scaled feature space (as described by \citealp{Parsa2024}) or at random. Random forests of 1,000 trees on min--max scaled features were evaluated with 50 stratified 70/30 splits. Three split designs were compared: (i) child-level random splitting, as described in the original study; (ii) splitting with all children of one parent kept on the same side; and (iii) no augmentation, one label per occurrence. We report mean test AUC, its 2.5--97.5 percentile range over the 50 splits, and the share of test positives with a sibling in the training set. The audit uses the full 48-feature set and our layers rather than those of the original study, so it measures the sensitivity of the protocol, not the original study's numbers.
+
+\subsection{Interpretation and mapping}\label{sec:shap}
+
+Production models were fitted to all positives and the training background of each region. SHAP values \citep{Lundberg2017} were computed with TreeSHAP for RF \citep{Lundberg2020} and DeepSHAP for DevNet on an explain set of all positives plus evaluation-background points (200 in total), with 100 training-background points as DevNet's reference sample. DevNet SHAP values were averaged over the five ensemble members; importance rankings from the first member alone, as used in the thesis, correlate with the ensemble ranking at $\rho_{\mathrm{S}} \geq 0.95$ in every region. Importance is mean $|$SHAP$|$. The \emph{direction} of a feature's effect is the Spearman correlation between the feature's value and its SHAP value over the explain set (for one-hot dummies, the sign of the mean SHAP difference between presence and absence), with $|\rho| < 0.1$ reported as no clear direction. This replaces the sign of the mean SHAP value used in the thesis. That quantity reflects where the explained points lie relative to the explainer's baseline, not whether higher feature values raise the score: for RF with balanced class weights the TreeSHAP baseline is near 0.5 while nearly all explained points score near 0, so the old rule labelled every RF feature as ``higher $\rightarrow$ less prospective''. Prospectivity maps classify each model's scores on a 0.1$^\circ$ prediction grid into the top 1\%, 5\% and 10\%, because DevNet's anomaly score and RF's probability are not on a common scale.
+
+%% ===================================================================
+\section{Results}\label{sec:results}
+
+\subsection{Model comparison under random cross-validation}\label{sec:res-random}
+
+In Superior all four models rank held-out occurrences far above chance (Table~\ref{tab:benchmark}): AP is 0.19--0.27 against a random-ranking value of 0.005, and AUC is 0.84--0.97. DevNet has the highest median AP (0.272) and RF and bagging-PU the highest AUC (0.973 and 0.969). DevNet's AP exceeds RF's in five of the six repeated splits, but the paired difference of $+0.022$ has a bootstrap interval of $[-0.181, +0.282]$ ($p = 0.37$; Table~\ref{tab:bootstrap}): with 15 positives the models cannot be separated by random cross-validation. nnPU attains a competitive AP (0.195) but a markedly lower AUC (0.838), and its performance depends on the assumed class prior (Table~\ref{tab:prior}), which is unknown in practice.
+
+The contrasting regions behave differently. In Cordillera, RF and bagging-PU are clearly superior to DevNet (AP 0.379 and 0.340 vs 0.113; DevNet's AP is lower in all six repeats and the bootstrap interval of DevNet $-$ RF is $[-0.438, -0.163]$), and nnPU fails (AUC 0.41). In Grenville all models are weak, the tree-based models again lead, and DevNet's AP (0.040) is barely above the 0.004 of a random ranking. That Superior is the best-predicted of the three provinces agrees with the province-level success rates of \citet{Parsa2024}.
+
+\begin{table}[t]
+\caption{Pooled out-of-fold AUC and AP (median and range over six repeated 5-fold random splits; pruned features). Bold: best of the four main models in each region. RF (fixed seed) is the thesis configuration.}\label{tab:benchmark}
+\footnotesize
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}llcc}
+\toprule
+Region ($n_{\mathrm{pos}}$) & Model & AUC & AP \\
+\midrule
+\multirow{5}{*}{Superior (15)} & DevNet & 0.953 [0.936, 0.959] & \textbf{0.272} [0.211, 0.359] \\
+ & RF & \textbf{0.973} [0.952, 0.982] & 0.214 [0.154, 0.261] \\
+ & Bagging-PU & 0.969 [0.955, 0.973] & 0.189 [0.137, 0.344] \\
+ & nnPU & 0.838 [0.823, 0.847] & 0.195 [0.162, 0.278] \\
+ & RF (fixed seed) & 0.957 [0.893, 0.975] & 0.220 [0.168, 0.257] \\
+\midrule
+\multirow{5}{*}{Cordillera (27)} & DevNet & 0.870 [0.838, 0.891] & 0.113 [0.083, 0.163] \\
+ & RF & 0.904 [0.891, 0.933] & \textbf{0.379} [0.280, 0.426] \\
+ & Bagging-PU & \textbf{0.912} [0.898, 0.932] & 0.340 [0.251, 0.379] \\
+ & nnPU & 0.406 [0.399, 0.408] & 0.008 [0.008, 0.009] \\
+ & RF (fixed seed) & 0.916 [0.909, 0.958] & 0.389 [0.291, 0.473] \\
+\midrule
+\multirow{5}{*}{Grenville (12)} & DevNet & 0.681 [0.641, 0.734] & 0.040 [0.028, 0.053] \\
+ & RF & 0.837 [0.767, 0.858] & \textbf{0.265} [0.200, 0.382] \\
+ & Bagging-PU & \textbf{0.842} [0.811, 0.861] & 0.163 [0.073, 0.231] \\
+ & nnPU & 0.740 [0.711, 0.785] & 0.037 [0.032, 0.075] \\
+ & RF (fixed seed) & 0.791 [0.720, 0.852] & 0.238 [0.199, 0.493] \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[t]
+\caption{Paired comparisons of DevNet with each other model (random cross-validation, pruned features): difference in AP and AUC computed on repeat-averaged out-of-fold ranks, with 95\% stratified bootstrap interval, one-sided $p = P(\Delta \leq 0)$, and the number of the six repeats in which DevNet has the higher AP.}\label{tab:bootstrap}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}llccccc}
+\toprule
+Region & Comparison & $\Delta$AP [95\%] & $p$ & AP wins & $\Delta$AUC & $p$ \\
+\midrule
+Superior & DevNet $-$ RF & +0.022 [-0.181, +0.282] & 0.373 & 5/6 & -0.030 & 0.867 \\
+Superior & DevNet $-$ Bagging-PU & +0.004 [-0.166, +0.248] & 0.404 & 6/6 & -0.021 & 0.702 \\
+Superior & DevNet $-$ nnPU & +0.037 [-0.124, +0.273] & 0.274 & 5/6 & +0.109 & 0.064 \\
+Cordillera & DevNet $-$ RF & -0.304 [-0.438, -0.163] & 1.000 & 0/6 & -0.055 & 1.000 \\
+Cordillera & DevNet $-$ Bagging-PU & -0.240 [-0.351, -0.122] & 1.000 & 0/6 & -0.044 & 1.000 \\
+Cordillera & DevNet $-$ nnPU & +0.117 [+0.055, +0.260] & 0.000 & 6/6 & +0.471 & 0.000 \\
+Grenville & DevNet $-$ RF & -0.325 [-0.517, -0.103] & 1.000 & 0/6 & -0.124 & 0.996 \\
+Grenville & DevNet $-$ Bagging-PU & -0.174 [-0.350, -0.000] & 0.975 & 0/6 & -0.163 & 1.000 \\
+Grenville & DevNet $-$ nnPU & -0.034 [-0.113, +0.088] & 0.559 & 4/6 & -0.061 & 0.753 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[t]
+\caption{Sensitivity of nnPU to the assumed class prior $\pi$, Superior (random cross-validation).}\label{tab:prior}
+\footnotesize
+\begin{tabular*}{0.6\textwidth}{@{\extracolsep\fill}lcc}
+\toprule
+$\pi$ & AUC & AP \\
+\midrule
+0.005 & 0.788 [0.768, 0.795] & 0.103 [0.039, 0.159] \\
+0.01 & 0.838 [0.823, 0.847] & 0.195 [0.162, 0.278] \\
+0.02 & 0.872 [0.856, 0.883] & 0.297 [0.229, 0.313] \\
+0.05 & 0.935 [0.919, 0.963] & 0.319 [0.274, 0.371] \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{Spatially blocked validation}\label{sec:res-spatial}
+
+Holding out whole blocks changes the picture in Superior (Fig.~\ref{fig:spatial}; Table~\ref{tab:spatial}). RF's AP falls from 0.214 under random splits to 0.128 with 50 and 100~km blocks and 0.094 with 200~km blocks, and bagging-PU follows the same path (0.110--0.122). DevNet's AP stays between 0.209 and 0.239 at every block size, and nnPU's between 0.189 and 0.211. DevNet's AP exceeds RF's in all six repeats at every block size, and the paired difference grows with block size, from $+0.107$ ($p=0.11$) at 50~km and $+0.116$ ($p=0.065$) at 100~km to $+0.217$ (95\% interval $[+0.027, +0.435]$, $p=0.009$) at 200~km (Table~\ref{tab:spatial-boot}). Capture-rate curves show the same effect (Fig.~\ref{fig:capture}). Under random splits DevNet, RF and bagging-PU capture 40--55\% of the held-out occurrences in the top 1--2\% of the ranked pool. Under 100~km blocks DevNet still captures about half of them in the top 1\%, against about a third for RF and bagging-PU, and its advantage persists to the 10\% mark.
+
+In Cordillera every model degrades sharply under blocking (AP $\leq$ 0.07 at 50~km and $\leq$ 0.03 at 100--200~km), and in Grenville AP approaches the random-ranking value. In these regions no difference between DevNet and the tree-based models is of practical size, and in Grenville DevNet remains the weakest model at every block size. The Cordilleran and Grenville models therefore owe much of their random-split skill to spatial proximity between training and test occurrences, whereas DevNet's Superior model retains its ranking skill on ground that lies at least 100--200~km from any training occurrence.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_spatial_cv.png}
+\caption{Average precision under random and spatially blocked cross-validation (median and range over six repeats). The random-ranking AP is 0.005 (Superior), 0.009 (Cordillera) and 0.004 (Grenville).}\label{fig:spatial}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/fig_capture_superior.png}
+\caption{Superior capture-rate curves: share of held-out occurrences ranked within the top fraction of the scored pool (a proxy for search area), (a) random cross-validation and (b) 100~km spatial blocks. Lines: median over six repeats; bands: range. Dashed: random ranking.}\label{fig:capture}
+\end{figure}
+
+\begin{table}[t]
+\caption{Average precision (median over six repeats) under random and spatially blocked cross-validation, and AUC for the same runs. Bold: highest AP in each row.}\label{tab:spatial}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}llcccccccc}
+\toprule
+ & & \multicolumn{4}{c}{AP} & \multicolumn{4}{c}{AUC} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+Region & Split & DevNet & RF & Bag.-PU & nnPU & DevNet & RF & Bag.-PU & nnPU \\
+\midrule
+\multirow{4}{*}{Superior} & random & \textbf{0.272} & 0.214 & 0.189 & 0.195 & 0.953 & 0.973 & 0.969 & 0.838 \\
+ & 50 km blocks & \textbf{0.239} & 0.128 & 0.122 & 0.196 & 0.944 & 0.933 & 0.954 & 0.826 \\
+ & 100 km blocks & 0.209 & 0.128 & 0.110 & \textbf{0.211} & 0.935 & 0.900 & 0.917 & 0.806 \\
+ & 200 km blocks & \textbf{0.235} & 0.094 & 0.111 & 0.189 & 0.804 & 0.879 & 0.870 & 0.807 \\
+\midrule
+\multirow{4}{*}{Cordillera} & random & 0.113 & \textbf{0.379} & 0.340 & 0.008 & 0.870 & 0.904 & 0.912 & 0.406 \\
+ & 50 km blocks & 0.054 & 0.056 & \textbf{0.072} & 0.008 & 0.823 & 0.782 & 0.853 & 0.402 \\
+ & 100 km blocks & 0.021 & 0.021 & \textbf{0.024} & 0.008 & 0.736 & 0.650 & 0.775 & 0.398 \\
+ & 200 km blocks & \textbf{0.024} & 0.018 & 0.022 & 0.008 & 0.776 & 0.625 & 0.746 & 0.388 \\
+\midrule
+\multirow{4}{*}{Grenville} & random & 0.040 & \textbf{0.265} & 0.163 & 0.037 & 0.681 & 0.837 & 0.842 & 0.740 \\
+ & 50 km blocks & 0.012 & \textbf{0.072} & 0.024 & 0.013 & 0.610 & 0.707 & 0.714 & 0.733 \\
+ & 100 km blocks & 0.005 & 0.006 & 0.012 & \textbf{0.013} & 0.569 & 0.621 & 0.673 & 0.704 \\
+ & 200 km blocks & 0.004 & 0.007 & 0.005 & \textbf{0.016} & 0.478 & 0.602 & 0.555 & 0.687 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[t]
+\caption{Paired comparisons under spatially blocked cross-validation, Superior.}\label{tab:spatial-boot}
+\footnotesize
+\begin{tabular*}{0.8\textwidth}{@{\extracolsep\fill}llccc}
+\toprule
+Blocks & Comparison & $\Delta$AP [95\%] & $p$ & AP wins \\
+\midrule
+50 km & DevNet $-$ RF & +0.107 [-0.076, +0.363] & 0.108 & 6/6 \\
+50 km & DevNet $-$ Bagging-PU & +0.145 [-0.064, +0.388] & 0.078 & 6/6 \\
+50 km & DevNet $-$ nnPU & +0.041 [-0.126, +0.304] & 0.247 & 6/6 \\
+100 km & DevNet $-$ RF & +0.116 [-0.037, +0.295] & 0.065 & 6/6 \\
+100 km & DevNet $-$ Bagging-PU & +0.135 [-0.043, +0.359] & 0.069 & 5/6 \\
+100 km & DevNet $-$ nnPU & +0.015 [-0.156, +0.273] & 0.353 & 4/6 \\
+200 km & DevNet $-$ RF & +0.217 [+0.027, +0.435] & 0.009 & 6/6 \\
+200 km & DevNet $-$ Bagging-PU & +0.164 [-0.031, +0.360] & 0.052 & 6/6 \\
+200 km & DevNet $-$ nnPU & +0.023 [-0.160, +0.276] & 0.351 & 5/6 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{How much of the score is location?}\label{sec:res-geography}
+
+A random forest given only coordinates reaches an AP of 0.507 in Cordillera under random cross-validation, higher than the same model with all evidence layers (0.379), and 0.249 in Grenville, nearly as high as the full RF (0.265; Table~\ref{tab:geography}). In these two provinces the random-split skill of the tree-based models can therefore be reproduced without any geology. Training occurrences cluster, a random split leaves most held-out occurrences close to a training occurrence, and a flexible learner can exploit that proximity, through the coordinates themselves or through spatially smooth long-wavelength layers that act as surrogate coordinates. Consistent with this, Moho depth on its 0.25$^\circ$ grid gives, on its own, an RF AP of 0.32 in Cordillera and 0.21 in Grenville in the single-feature ablation of the thesis run (one 5-fold split), against 0.39 and 0.22 with all features. Under 100~km blocks the coordinate-only model collapses (0.052 and 0.075), as do the full models, but it still outranks every evidence-based model in these two provinces ($\leq 0.024$ and $\leq 0.013$): at this scale the available layers carry less transferable information about where occurrences lie than the broad position of the occurrence belts.
+
+Superior is the exception. Coordinates alone reach only 0.157 under random splits and 0.018 under blocking, far below every evidence-based model, so the Superior scores reflect a geophysical signature rather than location. The smooth logistic regression behaves almost exactly like DevNet in all three provinces (random splits: 0.279 vs 0.272 in Superior, 0.085 vs 0.113 in Cordillera, 0.014 vs 0.040 in Grenville; 100~km blocks in Superior: 0.203 vs 0.209), which indicates that DevNet's position among the models is governed by its smooth inductive bias more than by the details of the deviation loss.
+
+\begin{table}[t]
+\caption{Geography-only and smooth baselines: AP and AUC (median over six repeats) under random cross-validation and 100~km spatial blocks, on identical folds. RF, coordinates only: random forest trained on projected coordinates without any evidence layer.}\label{tab:geography}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}llcccc}
+\toprule
+ & & \multicolumn{2}{c}{Random CV} & \multicolumn{2}{c}{100 km blocks} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+Region & Model & AP & AUC & AP & AUC \\
+\midrule
+\multirow{4}{*}{Superior} & RF, coordinates only & 0.157 & 0.782 & 0.018 & 0.750 \\
+ & RF, all features & 0.214 & 0.973 & 0.128 & 0.900 \\
+ & Logistic regression & 0.279 & 0.945 & 0.203 & 0.951 \\
+ & DevNet & 0.272 & 0.953 & 0.209 & 0.935 \\
+\midrule
+\multirow{4}{*}{Cordillera} & RF, coordinates only & 0.507 & 0.922 & 0.052 & 0.727 \\
+ & RF, all features & 0.379 & 0.904 & 0.021 & 0.650 \\
+ & Logistic regression & 0.085 & 0.883 & 0.023 & 0.788 \\
+ & DevNet & 0.113 & 0.870 & 0.021 & 0.736 \\
+\midrule
+\multirow{4}{*}{Grenville} & RF, coordinates only & 0.249 & 0.821 & 0.075 & 0.750 \\
+ & RF, all features & 0.265 & 0.837 & 0.006 & 0.621 \\
+ & Logistic regression & 0.014 & 0.644 & 0.006 & 0.532 \\
+ & DevNet & 0.040 & 0.681 & 0.005 & 0.569 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{Synthetic positives}\label{sec:res-augmentation}
+
+The generators behave very differently (Table~\ref{tab:aug-diag}; Fig.~\ref{fig:aug-pca}). Jitter and SMOTE samples lie close to the real positives (median nearest-neighbour ratio 0.11 and 0.26) and almost all have a real positive as their nearest labelled neighbour (100\% and 96\%): they are near-copies of the training occurrences. WGAN-GP samples are as far from the real positives as the real positives are from one another (ratio 0.86), but for 45\% of them the nearest labelled point is a background point: with 15 training points the generator spreads probability mass into background-like parts of feature space. All three sets of samples receive high DevNet scores (median percentile 0.98).
+
+Because the folds are identical with and without augmentation, the effect is measured as the paired, per-repeat difference in AP (Table~\ref{tab:augmentation}; Fig.~\ref{fig:aug-perf}). For DevNet no generator helps: jitter and SMOTE change AP by at most 0.01 in the median repeat, and WGAN-GP lowers it by 0.018--0.022 at every multiplier, in four or five of six repeats, while AUC falls from 0.953 to 0.925--0.935. For RF, SMOTE lowers AP (by 0.050 at $m = 10$, in all six repeats), and jitter and WGAN-GP at the highest multiplier raise it modestly (median $+0.025$ and $+0.041$, in five of six repeats, but with per-repeat differences ranging from $-0.06$ to $+0.22$). The best augmented RF (WGAN-GP $10\times$, AP 0.251) remains below DevNet without augmentation (0.272). Under spatial blocking the pattern holds (Appendix~\ref{app:aug-spatial}, Table~\ref{tab:aug-spatial}). WGAN-GP raises RF's AP with 100~km blocks from 0.128 to 0.159--0.161 (median per-repeat gain $+0.03$ to $+0.04$, in five or six of six repeats) but not with 200~km blocks, and augmented RF stays well below unaugmented DevNet (0.209 and 0.235). DevNet is again unchanged by jitter and SMOTE and lowered by WGAN-GP (median $-0.02$ at both block sizes).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_augmentation_superior.png}
+\caption{(a--c) Synthetic positives from each generator (fitted to all 15 Superior positives) in the first two principal components of background and real positives. (d) WGAN-GP critic estimate of the Wasserstein distance during training.}\label{fig:aug-pca}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_augmentation_performance.png}
+\caption{Superior average precision with fold-safe synthetic positives, by generator and number of synthetic positives per real training positive. Line and grey band: no augmentation (median and range).}\label{fig:aug-perf}
+\end{figure}
+
+\begin{table}[t]
+\caption{Effect of fold-safe positive augmentation on held-out performance, Superior (random cross-validation, identical folds; held-out positives always real). $\Delta$AP: paired difference from no augmentation in each of the six repeats (median [min, max]); wins: repeats with higher AP than without augmentation.}\label{tab:augmentation}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lllcccc}
+\toprule
+Model & Generator & $m$ & AUC & AP & $\Delta$AP per repeat & wins \\
+\midrule
+\multirow{10}{*}{DevNet} & none & -- & 0.953 & 0.272 [0.211, 0.359] & -- & -- \\
+ & Gaussian jitter & 1$\times$ & 0.951 & 0.275 [0.200, 0.354] & -0.006 [-0.030, +0.023] & 1/6 \\
+ & Gaussian jitter & 3$\times$ & 0.953 & 0.276 [0.218, 0.353] & +0.006 [-0.008, +0.021] & 4/6 \\
+ & Gaussian jitter & 10$\times$ & 0.954 & 0.286 [0.215, 0.337] & -0.001 [-0.026, +0.037] & 2/6 \\
+ & SMOTE & 1$\times$ & 0.949 & 0.278 [0.221, 0.361] & +0.006 [-0.007, +0.019] & 4/6 \\
+ & SMOTE & 3$\times$ & 0.948 & 0.289 [0.214, 0.367] & +0.010 [+0.001, +0.020] & 6/6 \\
+ & SMOTE & 10$\times$ & 0.944 & 0.292 [0.203, 0.366] & +0.008 [-0.029, +0.032] & 4/6 \\
+ & WGAN-GP & 1$\times$ & 0.935 & 0.251 [0.202, 0.315] & -0.019 [-0.071, +0.004] & 1/6 \\
+ & WGAN-GP & 3$\times$ & 0.926 & 0.267 [0.193, 0.316] & -0.018 [-0.061, +0.012] & 1/6 \\
+ & WGAN-GP & 10$\times$ & 0.925 & 0.269 [0.192, 0.323] & -0.022 [-0.082, +0.038] & 2/6 \\
+\midrule
+\multirow{10}{*}{RF} & none & -- & 0.973 & 0.214 [0.154, 0.261] & -- & -- \\
+ & Gaussian jitter & 1$\times$ & 0.943 & 0.184 [0.138, 0.333] & -0.032 [-0.071, +0.183] & 1/6 \\
+ & Gaussian jitter & 3$\times$ & 0.970 & 0.252 [0.146, 0.307] & +0.014 [-0.014, +0.110] & 4/6 \\
+ & Gaussian jitter & 10$\times$ & 0.962 & 0.249 [0.159, 0.305] & +0.025 [-0.063, +0.139] & 5/6 \\
+ & SMOTE & 1$\times$ & 0.958 & 0.180 [0.141, 0.208] & -0.025 [-0.094, +0.026] & 2/6 \\
+ & SMOTE & 3$\times$ & 0.975 & 0.183 [0.154, 0.242] & -0.015 [-0.083, +0.075] & 3/6 \\
+ & SMOTE & 10$\times$ & 0.966 & 0.137 [0.119, 0.180] & -0.050 [-0.125, -0.020] & 0/6 \\
+ & WGAN-GP & 1$\times$ & 0.971 & 0.216 [0.177, 0.279] & +0.040 [-0.075, +0.065] & 4/6 \\
+ & WGAN-GP & 3$\times$ & 0.973 & 0.219 [0.190, 0.310] & +0.008 [-0.046, +0.149] & 3/6 \\
+ & WGAN-GP & 10$\times$ & 0.975 & 0.251 [0.192, 0.377] & +0.041 [-0.057, +0.222] & 5/6 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[t]
+\caption{What the generators produce (fitted to all 15 Superior positives; 150 samples each). NN ratio: distance to the nearest real positive divided by the median nearest-neighbour distance among real positives (0 = copy). Nearest labelled neighbour: share of samples whose nearest point among positives and training background is a positive. DevNet percentile: median score percentile among the training background under the production DevNet.}\label{tab:aug-diag}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\toprule
+Source & NN ratio, median & NN ratio, P10 & NN is positive & DevNet pct. \\
+\midrule
+Real occurrences (leave-one-out) & 1.00 & 0.55 & -- & 0.995 \\
+Gaussian jitter & 0.11 & 0.09 & 100\% & 0.983 \\
+SMOTE & 0.26 & 0.06 & 96\% & 0.982 \\
+WGAN-GP & 0.86 & 0.60 & 55\% & 0.981 \\
+Background (300 random points) & 1.25 & -- & -- & 0.500 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{Validation-protocol audit}\label{sec:res-audit}
+
+Rebuilding the S2 parent--child augmentation and child-level random splitting of \citet{Parsa2024} on our data gives a test AUC of 0.998--1.000 in all three provinces and for both negative-sampling rules, with 2.5--97.5 percentile ranges no wider than 0.98--1.00 (Table~\ref{tab:audit}; Fig.~\ref{fig:audit}). In 97--99\% of the test positives, at least one sibling child cell of the same occurrence is in the training set. In feature space, siblings are closer to each other (median standardised distance 2.1--3.7) than occurrences are to their nearest other occurrence (4.1--6.7) and than background points are to their nearest background neighbour (4.5--4.7; Table~\ref{tab:audit-sim}), because the coarse deep-architecture layers take identical values in sibling cells and the fine-scale layers nearly so.
+
+The honest reference within this balanced 70/30 design is one label per occurrence with random negatives. It gives a mean AUC of 0.946 in Superior, 0.772 in Cordillera and 0.624 in Grenville, each with a very wide range over the 50 splits (0.65--1.00, 0.58--0.92 and 0.26--0.99). The child-level split therefore inflates test AUC by about 0.05, 0.23 and 0.37 respectively, the inflation being largest where real skill is lowest, and it collapses the apparent uncertainty to almost nothing. Drawing negatives from the least similar 5\% of the ground inflates AUC independently of the split: without augmentation, cosine-dissimilar negatives raise mean AUC from 0.946 to 0.990 in Superior, from 0.772 to 0.993 in Cordillera and from 0.624 to 0.833 in Grenville. Keeping all children of one parent on the same side of the split removes most, but not all, of the augmentation effect (Superior 0.957, Cordillera 0.963, Grenville 0.829 with random negatives); the remainder reflects the fourfold larger training set and spatial dependence between neighbouring occurrences in different parent cells, which only spatial blocking removes.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_protocol_audit.png}
+\caption{Protocol audit: random forest test AUC under S2 parent--child augmentation for three split designs and two negative-sampling rules (mean and range over 50 balanced 70/30 splits).}\label{fig:audit}
+\end{figure}
+
+\begin{table}[t]
+\caption{Feature-space distance (median, standardised features) between sibling child cells of the same occurrence, from each occurrence to its nearest other occurrence, and from background points to their nearest background neighbour.}\label{tab:audit-sim}
+\footnotesize
+\begin{tabular*}{0.8\textwidth}{@{\extracolsep\fill}lccc}
+\toprule
+Region & Siblings & Nearest other occurrence & Nearest background neighbour \\
+\midrule
+Superior & 3.43 & 5.42 & 4.45 \\
+Cordillera & 2.11 & 4.06 & 4.50 \\
+Grenville & 3.69 & 6.74 & 4.66 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[t]
+\caption{Protocol audit: random forest test AUC (mean and 2.5--97.5 percentile range over 50 stratified 70/30 splits of balanced labels) under the S2 parent--child augmentation of \citet{Parsa2024}, for two negative-sampling rules (cosine-dissimilar or random) and three split designs (child-level random, as published; children grouped by parent; no augmentation). Pos.: positive labels. Sibling: share of test positives with a sibling child cell in the training set.}\label{tab:audit}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lllccc}
+\toprule
+Region & Negatives & Split & Pos. & Test AUC & Sibling \\
+\midrule
+\multirow{6}{*}{Superior} & cosine & child-level & 60 & 0.998 [0.982, 1.000] & 98\% \\
+ & cosine & parent-grouped & 60 & 0.977 [0.871, 1.000] & -- \\
+ & cosine & no augm. & 15 & 0.990 [0.900, 1.000] & -- \\
+ & random & child-level & 60 & 0.998 [0.986, 1.000] & 98\% \\
+ & random & parent-grouped & 60 & 0.957 [0.816, 1.000] & -- \\
+ & random & no augm. & 15 & 0.946 [0.645, 1.000] & -- \\
+\midrule
+\multirow{6}{*}{Cordillera} & cosine & child-level & 108 & 1.000 [0.997, 1.000] & 97\% \\
+ & cosine & parent-grouped & 108 & 0.995 [0.979, 1.000] & -- \\
+ & cosine & no augm. & 27 & 0.993 [0.958, 1.000] & -- \\
+ & random & child-level & 108 & 1.000 [0.995, 1.000] & 97\% \\
+ & random & parent-grouped & 108 & 0.963 [0.868, 1.000] & -- \\
+ & random & no augm. & 27 & 0.772 [0.580, 0.918] & -- \\
+\midrule
+\multirow{6}{*}{Grenville} & cosine & child-level & 48 & 1.000 [1.000, 1.000] & 99\% \\
+ & cosine & parent-grouped & 48 & 0.976 [0.865, 1.000] & -- \\
+ & cosine & no augm. & 12 & 0.833 [0.438, 1.000] & -- \\
+ & random & child-level & 48 & 0.998 [0.986, 1.000] & 99\% \\
+ & random & parent-grouped & 48 & 0.829 [0.508, 1.000] & -- \\
+ & random & no augm. & 12 & 0.624 [0.264, 0.986] & -- \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{Model interpretation}\label{sec:res-shap}
+
+With the corrected direction rule, RF and DevNet agree on the sign of the effect for 10 of their 10 jointly most important features in Superior, 10 of 10 in Cordillera and 9 of 10 in Grenville (Table~\ref{tab:shap}). The thesis's direction rule had reported agreement on only 3, 0 and 3 of the same features, an artefact of the two explainers' different baselines. The rankings of the two models are moderately correlated ($\rho_{\mathrm{S}} = 0.55$--$0.64$ across all pruned features).
+
+In Superior (Fig.~\ref{fig:shap}) DevNet ranks LAB depth first, followed by the 100~km high-pass Bouguer anomaly, deep magnetic-worm proximity, Moho depth and Bouguer GLCM correlation; RF ranks the horizontal-gradient magnitude of deep-source magnetics first, then LAB depth and fault proximity. Both models score ground as more prospective where the LAB and Moho are shallower, where the long-wavelength residual gravity is positive, near faults and deep gravity worms, over magnetic highs (DRTP 1VD) and where the magnetic texture is rougher (TMI GLCM contrast), and as less prospective close to deep magnetic worms and where deep-source magnetic gradients are high. DevNet additionally gives large positive attributions to the few explained points mapped as alkaline-favourable lithology. In Cordillera both models treat Mesozoic terranes as unfavourable and Proterozoic terranes as favourable, and both rate fault and passive-margin proximity positively. In Grenville both rank deep-source magnetics, magnetic tilt and gravity texture highest, but given the weak predictive skill there these attributions describe the signal the models attempted to use rather than a reliable control.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_shap_superior.png}
+\caption{SHAP summaries for Superior: (a) DevNet (DeepSHAP, mean over the five ensemble members) and (b) RF (TreeSHAP). Each point is one explained sample; colour is the feature value. SHAP magnitudes are not comparable between models (unbounded anomaly score vs probability).}\label{fig:shap}
+\end{figure}
+
+\begin{table}[t]
+\caption{Superior: the ten jointly most important features (mean $|$SHAP$|$, normalised per model). Rank among 35 features; direction $\uparrow$/$\downarrow$: higher values (or presence) raise/lower the score, with Spearman $\rho$ between feature value and SHAP value.}\label{tab:shap}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\toprule
+Feature & DevNet rank & DevNet dir. & RF rank & RF dir. \\
+\midrule
+LAB depth & 1 & $\downarrow$ (-0.98) & 2 & $\downarrow$ (-0.89) \\
+Deep-source RTP HGM & 6 & $\downarrow$ (-0.96) & 1 & $\downarrow$ (-0.74) \\
+BA high-pass 100 km & 2 & $\uparrow$ (+0.98) & 16 & $\uparrow$ (+0.81) \\
+Deep magnetic-worm proximity & 3 & $\downarrow$ (-0.95) & 12 & $\downarrow$ (-0.94) \\
+Moho depth & 4 & $\downarrow$ (-0.98) & 10 & $\downarrow$ (-0.86) \\
+Fault proximity & 11 & $\uparrow$ (+0.89) & 3 & $\uparrow$ (+0.89) \\
+DRTP 1VD & 10 & $\uparrow$ (+0.97) & 7 & $\uparrow$ (+0.86) \\
+Deep gravity-worm proximity & 9 & $\uparrow$ (+0.96) & 8 & $\uparrow$ (+0.81) \\
+Bouguer anomaly (BA) GLCM correlation & 5 & $\downarrow$ (-0.97) & 19 & $\downarrow$ (-0.86) \\
+TMI GLCM contrast & 13 & $\uparrow$ (+0.88) & 5 & $\uparrow$ (+0.92) \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\subsection{Prospectivity maps and an external check}\label{sec:res-maps}
+
+The production DevNet and RF maps (Fig.~\ref{fig:maps}) both concentrate the highest classes in the eastern Abitibi around the Montviel--Lac Shortt cluster and in the south-central Superior Province, but DevNet's high-ranked ground is more continuous and extends further from the known occurrences. In the Kapuskasing area (Fig.~\ref{fig:ksz}) DevNet's top 1\% and 5\% classes form a coherent, north-north-east trending band that follows the mapped trace of the KSZ and its alkaline complexes, extending well beyond the two training occurrences located there. As a blind test we scored Clay-Howells, a drill-tested Fe--REE--Nb prospect with reported resources on the KSZ \citep{OGS2011} that is not among the training labels and lies 79~km from the nearest one. At its recorded location the production DevNet ranks it at the 99.94th percentile of the 8,000 random background points of the province, that is, among the top 0.1\% of ground; RF ranks it at the 99.4th percentile (probability 0.04, while 86\% of the background receives exactly zero).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.49\textwidth]{figures/fig_map_devnet_superior.jpg}\hfill
+\includegraphics[width=0.49\textwidth]{figures/fig_map_rf_superior.jpg}
+\caption{Superior prospectivity maps from the production (a) DevNet and (b) RF models, classified by score percentile (top 1\%, 5\%, 10\%), with known occurrences.}\label{fig:maps}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.49\textwidth]{figures/fig_ksz_geology.png}\hfill
+\includegraphics[width=0.49\textwidth]{figures/fig_ksz_devnet.png}
+\caption{External check in the Kapuskasing area. (a) Regional geology with the Kapuskasing Structural Zone (KSZ) and alkalic rock complexes \citep{Gittins1967,Percival1994}, compiled from \citet{Heather1995} and \citet{Montsion2018}. (b) DevNet top 1\%, 5\% and 10\% classes.}\label{fig:ksz}
+\end{figure}
+
+%% ===================================================================
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Where semi-supervised anomaly detection helps}\label{sec:disc-devnet}
+
+Under random cross-validation DevNet is statistically indistinguishable from RF and bagging-PU in Superior and clearly worse in Cordillera and Grenville. A study that stopped there would conclude that the semi-supervised formulation offers no predictive advantage. The spatially blocked results show why that conclusion would be premature for Superior. RF and bagging-PU, which learn a sharp decision boundary around the training positives, lose about half of their AP once the nearest training occurrence is 100--200~km away, whereas DevNet's AP is almost unchanged. The deviation loss asks only that labelled occurrences score far above a background that is pulled towards a common reference; it does not have to carve out the neighbourhood of each training positive, and its scores vary smoothly with the deep lithospheric and potential-field controls that the occurrences share (Section~\ref{sec:res-shap}). This is the behaviour an exploration model needs, because the ground worth ranking is precisely the ground far from known occurrences. In Superior, where one tight cluster dominates the label set, a random split rewards learning that cluster; a spatial split rewards learning what the scattered occurrences have in common.
+
+The geography-only baseline sharpens this interpretation (Section~\ref{sec:res-geography}). In Cordillera and Grenville, where the tree-based learners beat DevNet under random splits, a forest that sees only coordinates does as well or better, so DevNet's deficit there is a deficit in memorising where occurrences cluster, not in learning geology. A smooth model cannot memorise positions in this way, and for a prospectivity model that is to rank unexplored ground it should not. DevNet ranks like a regularised logistic regression, and both are outperformed precisely where location alone is predictive; where location alone is not predictive (Superior), the smooth models lead, and DevNet leads most clearly where the test requires extrapolation. A random-split comparison in a province with clustered occurrences is therefore largely a contest in spatial memorisation. Sensitivity analyses added after these diagnostics (Appendix~\ref{app:sensitivity}) point the same way: with quantile-normal inputs or background-heavy batches, DevNet's spatially blocked AP in Superior rises further (to 0.24--0.32), whereas no variant creates transferable skill in Cordillera or Grenville.
+
+The Cordilleran and Grenville results bound this conclusion. Where positives are comparatively plentiful and clustered (Cordillera), or the geophysical signal is weak (Grenville), the tree-based learners are as good or better and no model transfers well between blocks. DevNet is therefore not a universal replacement for discriminative baselines; its advantage is specific to the combination of very few positives, a shared deep control and the need to extrapolate. The comparison with nnPU, which shares DevNet's network and training budget and differs only in its loss, indicates that the gain comes from the deviation objective rather than from the architecture, and that nnPU's dependence on an unknown class prior is a practical liability (Table~\ref{tab:prior}).
+
+\subsection{Synthetic positives do not create information}\label{sec:disc-gan}
+
+Synthetic positives are an attractive response to label scarcity, and GAN-generated labels have been recommended for exactly this commodity \citep{Parsa2025}. Our results counsel caution. A generator fitted to a dozen training positives has two options. It can stay close to them, in which case it adds near-duplicates that carry no new information (jitter and SMOTE, nearest-neighbour ratios of 0.1--0.3); or it can spread out, in which case it must guess where unseen occurrences lie and, having no information about that, places much of its mass in background-like feature space (WGAN-GP, 45\% of samples nearest to a background point). Neither option supplies the information that is actually missing, namely what undiscovered occurrences look like. The small and inconsistent gains for RF are better explained as smoothing: synthetic points around and between the training positives make more trees vote for nearby held-out points, which relieves RF's degenerate surface of exactly-zero probabilities (Section~\ref{sec:models}) rather than teaching it new geology. The same synthetic points degrade DevNet, whose deviation loss already produces smooth scores and is contradicted by positives placed in background-like space. Consistent with this reading, RF's gain from WGAN-GP shrinks as the held-out blocks grow and vanishes at 200~km, as expected if the synthetic points mainly smooth RF's surface near the training occurrences rather than encode controls that transfer to distant ground.
+
+Where synthetic positives are used, two conditions are essential. They must be generated inside each training fold from that fold's positives only, and performance must be measured on real held-out occurrences. Otherwise, a synthetic copy of a training occurrence in the test set reproduces the sibling problem of Section~\ref{sec:res-audit} in another form.
+
+\subsection{The validation protocol decides most reported differences}\label{sec:disc-protocol}
+
+Three of our findings concern evaluation rather than models. First, a single cross-validation split cannot rank models when positives number in the tens: re-splitting the same Superior data moves DevNet's AP between 0.21 and 0.36, and an arbitrary RF seed moves its AUC between 0.89 and 0.99. Second, random splits overstate skill wherever occurrences cluster, and the size of the overstatement differs between models, so random splits can also reverse a model ranking (Section~\ref{sec:res-spatial}). Third, the protocol audit shows that splitting augmented child cells at random yields near-perfect test AUC on these data whatever the negatives, because almost every test positive has a sibling, sharing the coarse deep-architecture values exactly and the fine-scale values nearly, on the training side. In this design the held-out test asks the model to recognise a location it has already seen. The same design also makes the comparison of training and test AUC, which \citet{Parsa2024} used to argue that their models were not over-fitted, uninformative, because the test set is not independent of the training set. Selecting negatives from the least similar 5\% of the ground adds a second, independent source of optimism: it removes from evaluation exactly the ground on which a prospectivity model is hardest to get right, a pattern also seen in an early iteration of the present study, in which cosine-selected negatives drove DevNet's AUC to 0.999.
+
+We stress what the audit does and does not show. It uses our features, regions and models, not those of \citet{Parsa2024}, and it does not establish what their numbers would have been under a grouped split. It does show that, on comparable Canadian carbonatite data, the published design produces test AUCs close to 1 whether the underlying skill is high (Superior) or weak (Grenville, honest AUC 0.62), and that the reported 0.91--0.96 cannot be taken as evidence of generalisation to unexplored ground until the augmented children of one occurrence are kept on one side of the split. \citet{Parsa2025} describe the same stratified random 70/30 split for a workflow that adds GAN-generated labels; their description does not state whether synthetic labels derived from an original label were kept on the same side of the split as that label. If they were not, the caveat applies with greater force, because a synthetic label generated from a training occurrence is a sibling in the same sense. For prospectivity studies under extreme label scarcity we therefore recommend (i) grouping every augmented or near-duplicate label with its source occurrence before any split, (ii) drawing evaluation negatives at random from the domain rather than from the ground least similar to the positives, (iii) reporting AP with intervals over repeated splits rather than a single AUC, (iv) adding a spatially blocked validation in which training background is purged from held-out blocks, and (v) reporting a geography-only baseline, so that readers can see how much of a score is location.
+
+\subsection{Geological interpretation}\label{sec:disc-geology}
+
+The drivers on which RF and DevNet agree in Superior describe a coherent mineral system. Shallower LAB and Moho, together with the strong ranking of deep-source magnetic gradients, point to the thinner lithosphere at the edges of the thick Superior root, where small-degree melting of metasomatised mantle and access along lithosphere-scale structures are most likely \citep{Griffin2013,Groves2021,Hoggard2020}; a mantle conductor beneath the southern Abitibi is consistent with such metasomatism \citep{Snyder2021}. Positive long-wavelength residual gravity, magnetic highs and rough magnetic texture are the expected expression of dense, magnetite-bearing alkaline--carbonatite complexes \citep{Thomas2016}, and fault and deep gravity-worm proximity capture the structures that focus ascent. The negative effect of proximity to deep magnetic worms is less intuitive; it may reflect the concentration of deep magnetic contacts along greenstone-belt and terrane boundaries that are not themselves carbonatite hosts, and should not be over-interpreted. The KSZ corridor in DevNet's map (Fig.~\ref{fig:ksz}) is the clearest expression of these controls: a granulite-cored, crustal-scale structure along which alkaline--carbonatite complexes are concentrated \citep{Percival1994,Gittins1967} emerges from a model that was given only two occurrences there and no structural map of the KSZ itself, and the same model places the untrained Clay-Howells resource in the top 0.1\% of the province.
+
+DevNet's large attributions to mapped alkaline-favourable lithology (Fig.~\ref{fig:shap}) are a reminder that bedrock maps sometimes encode the target: an alkaline complex mapped at a known carbonatite is close to a label. This feature affects only a few points, and the spatial validation, in which held-out blocks also hold out their lithology, limits its influence on the reported metrics; but for operational targeting, models with and without lithology should be compared.
+
+\subsection{Limitations}\label{sec:limitations}
+
+Fifteen positives allow only weak statistical statements: our significant results are those that are consistent across repeats, block sizes and comparisons, and individual $p$ values are nominal. The evaluation background may contain undiscovered occurrences, so all metrics are lower bounds. Eleven gravity and magnetic layers are proprietary Getech products; equivalent derivatives can be computed from the public parent grids, but results will differ somewhat. The provenance of the fault compilation should be confirmed against the original data release before publication. The occurrence-class information (Deposit/Prospect, Showing, Occurrence) was not used for weighting; a stratified analysis found no significant difference in how the models score low- and high-confidence occurrences, but with 3--8 points per class this test is underpowered. Finally, maps are per-region percentiles and are not calibrated probabilities.
+
+%% ===================================================================
+\section{Conclusions}\label{sec:conclusions}
+
+For regional carbonatite-hosted REE prospectivity mapping with 12--27 occurrences per province:
+\begin{enumerate}
+\item Under random cross-validation, a semi-supervised Deviation Network, RF and two PU learners are statistically indistinguishable in the Superior Province, and the tree-based models are better in the Cordilleran Orogen and the Grenville Province; there, however, a Random Forest given only coordinates matches or exceeds them, so their advantage is spatial memorisation of clustered occurrences rather than geology.
+\item Under spatially blocked validation, which mimics ranking unexplored ground, DevNet's average precision in Superior is maintained while RF's and bagging-PU's halve; the advantage grows with block size and is consistent across all repeats. Semi-supervised anomaly detection earns its place where it matters for exploration, away from known occurrences, but not universally.
+\item Synthetic positives from jitter, SMOTE or a tabular WGAN-GP, generated strictly within training folds, gave DevNet no gain and RF at most small, inconsistent gains that did not close the gap to unaugmented DevNet; with this few positives the generators either copy them or extrapolate into background-like space.
+\item Splitting augmented child cells of the same occurrence between training and test sets yields near-perfect test AUC on these data irrespective of model skill; together with negatives drawn from the least similar ground, this can account for high AUCs reported in previous national-scale studies. Augmented labels must be grouped with their source occurrence before splitting.
+\item With a corrected SHAP direction rule, RF and DevNet agree on the controls of carbonatite-hosted REE prospectivity in Superior (thin lithosphere and crust at the craton edge, dense and magnetic intrusions, fault-focused ascent), and DevNet's highest-ranked ground follows the Kapuskasing Structural Zone, ranking the untrained Clay-Howells Fe--REE--Nb resource in the top 0.1\% of the province.
+\end{enumerate}
+
+\backmatter
+
+\bmhead{Acknowledgements}
+This work began as an MSc Independent Research Project at Imperial College London. We thank Ross Smail (Getech Group plc), Prof. Chetan Nathwani and Prof. Rebecca Bell for supervision, Getech Group plc for providing processed gravity and magnetic grids, and Junlin Fang for discussions on methodology and model evaluation.
+
+\section*{Declarations}
+
+\bmhead{Funding} %% TODO(author)
+Not applicable.
+
+\bmhead{Competing interests} %% TODO(author)
+The authors declare no competing interests.
+
+\bmhead{Data availability}
+Occurrence labels are derived from \citet{Orris2018} and \citet{Parsa2024}; the deduplicated tables and study-area outlines are distributed with the code. Public layers are available from \citet{McCafferty2023}, \citet{Jobin2017}, \citet{Miles2016}, \citet{BradleyDC2008} and \citet{Wheeler1996}. Eleven processed gravity and magnetic grids were supplied by Getech Group plc under licence and cannot be redistributed.
+
+\bmhead{Code availability} %% TODO(author): make the repository public or archive it (e.g. Zenodo) before submission
+The pipeline, every analysis in this paper and the scripts that generate its tables and figures are available at \url{https://github.com/miaozhou-312/ree-prospectivity-paper}.
+
+\begin{appendices}
+
+\section{Full feature set}\label{app:full}
+
+\begin{table}[!h]
+\caption{As Table~\ref{tab:benchmark}, for the full 48-feature set.}\label{tab:benchmark-full}
+\footnotesize
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}llcc}
+\toprule
+Region ($n_{\mathrm{pos}}$) & Model & AUC & AP \\
+\midrule
+\multirow{5}{*}{Superior (15)} & DevNet & 0.957 [0.932, 0.960] & \textbf{0.269} [0.236, 0.417] \\
+ & RF & \textbf{0.969} [0.878, 0.978] & 0.222 [0.170, 0.273] \\
+ & Bagging-PU & 0.940 [0.922, 0.958] & 0.187 [0.160, 0.224] \\
+ & nnPU & 0.823 [0.811, 0.837] & 0.156 [0.107, 0.171] \\
+ & RF (fixed seed) & 0.961 [0.917, 0.984] & 0.222 [0.181, 0.276] \\
+\midrule
+\multirow{5}{*}{Cordillera (27)} & DevNet & 0.872 [0.836, 0.888] & 0.109 [0.075, 0.135] \\
+ & RF & \textbf{0.909} [0.887, 0.923] & \textbf{0.379} [0.262, 0.433] \\
+ & Bagging-PU & 0.895 [0.890, 0.911] & 0.339 [0.249, 0.370] \\
+ & nnPU & 0.467 [0.457, 0.473] & 0.010 [0.009, 0.011] \\
+ & RF (fixed seed) & 0.905 [0.883, 0.932] & 0.369 [0.299, 0.439] \\
+\midrule
+\multirow{5}{*}{Grenville (12)} & DevNet & 0.702 [0.680, 0.752] & 0.059 [0.052, 0.083] \\
+ & RF & \textbf{0.799} [0.748, 0.860] & \textbf{0.218} [0.102, 0.392] \\
+ & Bagging-PU & 0.772 [0.752, 0.821] & 0.132 [0.080, 0.244] \\
+ & nnPU & 0.754 [0.741, 0.767] & 0.054 [0.029, 0.084] \\
+ & RF (fixed seed) & 0.867 [0.794, 0.897] & 0.203 [0.144, 0.334] \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\section{Augmentation under spatially blocked validation}\label{app:aug-spatial}
+
+\begin{table}[!h]
+\caption{Superior average precision with fold-safe synthetic positives under spatially blocked cross-validation (median and range over six repeats), with the paired per-repeat difference from no augmentation.}\label{tab:aug-spatial}
+\footnotesize
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lllccc}
+\toprule
+Blocks & Model & Augmentation & AP & $\Delta$AP per repeat & wins \\
+\midrule
+100 km & DevNet & none & 0.209 [0.180, 0.338] & -- & -- \\
+ &  & Gaussian jitter 10$\times$ & 0.226 [0.180, 0.340] & +0.000 [-0.008, +0.036] & 3/6 \\
+ &  & SMOTE 3$\times$ & 0.225 [0.176, 0.331] & +0.004 [-0.037, +0.040] & 3/6 \\
+ &  & WGAN-GP 3$\times$ & 0.190 [0.159, 0.320] & -0.023 [-0.054, +0.060] & 2/6 \\
+ &  & WGAN-GP 10$\times$ & 0.186 [0.156, 0.314] & -0.024 [-0.072, +0.033] & 2/6 \\
+\addlinespace
+100 km & RF & none & 0.128 [0.049, 0.190] & -- & -- \\
+ &  & Gaussian jitter 10$\times$ & 0.130 [0.067, 0.222] & +0.006 [-0.061, +0.081] & 5/6 \\
+ &  & SMOTE 3$\times$ & 0.095 [0.043, 0.215] & -0.007 [-0.116, +0.084] & 2/6 \\
+ &  & WGAN-GP 3$\times$ & 0.159 [0.062, 0.253] & +0.031 [+0.007, +0.106] & 6/6 \\
+ &  & WGAN-GP 10$\times$ & 0.161 [0.083, 0.239] & +0.040 [-0.019, +0.094] & 5/6 \\
+\addlinespace
+200 km & DevNet & none & 0.235 [0.186, 0.252] & -- & -- \\
+ &  & Gaussian jitter 10$\times$ & 0.230 [0.215, 0.243] & +0.002 [-0.037, +0.047] & 3/6 \\
+ &  & SMOTE 3$\times$ & 0.223 [0.201, 0.242] & -0.016 [-0.032, +0.060] & 2/6 \\
+ &  & WGAN-GP 3$\times$ & 0.206 [0.171, 0.243] & -0.022 [-0.064, +0.055] & 3/6 \\
+ &  & WGAN-GP 10$\times$ & 0.191 [0.178, 0.239] & -0.024 [-0.074, +0.018] & 3/6 \\
+\addlinespace
+200 km & RF & none & 0.094 [0.036, 0.150] & -- & -- \\
+ &  & Gaussian jitter 10$\times$ & 0.079 [0.053, 0.122] & -0.025 [-0.067, +0.045] & 2/6 \\
+ &  & SMOTE 3$\times$ & 0.094 [0.052, 0.112] & +0.008 [-0.058, +0.023] & 4/6 \\
+ &  & WGAN-GP 3$\times$ & 0.118 [0.075, 0.154] & +0.012 [-0.036, +0.076] & 3/6 \\
+ &  & WGAN-GP 10$\times$ & 0.094 [0.060, 0.153] & +0.008 [-0.053, +0.072] & 3/6 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\section{Interpretation in the contrasting provinces}\label{app:shap}
+
+\begin{table}[!h]
+\caption{As Table~\ref{tab:shap}, Cordillera (33 features).}\label{tab:shap-cord}
+\footnotesize
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\toprule
+Feature & DevNet rank & DevNet dir. & RF rank & RF dir. \\
+\midrule
+Bouguer anomaly (BA) & 2 & $\downarrow$ (-0.98) & 2 & $\downarrow$ (-0.87) \\
+Era: Mesozoic & 1 & $\downarrow$ (-0.82) & 8 & $\downarrow$ (-0.82) \\
+Passive-margin proximity & 13 & $\uparrow$ (+0.92) & 1 & $\uparrow$ (+0.56) \\
+Fault proximity & 4 & $\uparrow$ (+0.91) & 7 & $\uparrow$ (+0.87) \\
+Moho depth & 5 & $\uparrow$ (+0.98) & 6 & $\uparrow$ (+0.83) \\
+Era: Proterozoic & 3 & $\uparrow$ (+0.74) & 14 & $\uparrow$ (+0.74) \\
+Gravity up-cont. 30 km HGM & 12 & $\uparrow$ (+0.93) & 4 & $\uparrow$ (+0.84) \\
+BA high-pass 40 km GLCM contrast & 9 & $\downarrow$ (-0.94) & 10 & $\downarrow$ (-0.31) \\
+Deep-source RTP & 17 & $\downarrow$ (-0.94) & 3 & $\downarrow$ (-0.75) \\
+TMI GLCM correlation & 6 & $\downarrow$ (-0.98) & 17 & $\downarrow$ (-0.39) \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[!h]
+\caption{As Table~\ref{tab:shap}, Grenville (33 features).}\label{tab:shap-gren}
+\footnotesize
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccc}
+\toprule
+Feature & DevNet rank & DevNet dir. & RF rank & RF dir. \\
+\midrule
+Deep-source RTP & 1 & $\uparrow$ (+0.97) & 1 & $\uparrow$ (+0.74) \\
+DRTP THD tilt & 3 & $\downarrow$ (-0.96) & 2 & $\downarrow$ (-0.80) \\
+BA high-pass 40 km GLCM contrast & 2 & $\uparrow$ (+0.97) & 3 & $\uparrow$ (+0.86) \\
+Deep gravity-worm proximity & 4 & $\uparrow$ (+0.98) & 9 & $\uparrow$ (+0.82) \\
+Moho depth & 6 & $\downarrow$ (-0.96) & 4 & $\downarrow$ (-0.71) \\
+Bouguer anomaly (BA) GLCM energy & 5 & $\uparrow$ (+0.95) & 16 & $\uparrow$ (+0.94) \\
+Shallow gravity-worm proximity & 10 & $\uparrow$ (+0.96) & 8 & $\uparrow$ (+0.29) \\
+Deep-source RTP HGM & 7 & $\uparrow$ (+0.98) & 11 & $\uparrow$ (+0.33) \\
+Deep magnetic-worm proximity & 8 & $\uparrow$ (+0.97) & 13 & $\uparrow$ (+0.73) \\
+Gravity up-cont. 30 km HGM & 17 & $\downarrow$ (-0.95) & 7 & $\uparrow$ (+0.24) \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\section{Post-diagnostic sensitivity analyses of DevNet}\label{app:sensitivity}
+
+The analyses in this appendix were added after the main results had been obtained, prompted by the diagnostics of why DevNet trails the tree-based models under random splits (Sections~\ref{sec:res-geography} and \ref{sec:disc-devnet}). They are reported for transparency and are not used in the main comparison. Each variant changes one aspect of the original configuration, fixed before it was run and not tuned afterwards, and is evaluated with the folds, protocols and paired tests of the main results.
+
+Two properties of the original configuration motivated them. First, inputs are z-scored, although many features are strongly skewed (inverted distances concentrated near 0 or 1, long-tailed textures, 0/1 dummies); unlike tree ensembles, which are invariant to monotone transformations, multilayer perceptrons are sensitive to such marginal distributions \citep{Gorishniy2021,Grinsztajn2022}. \emph{DevNet-QT} replaces standardisation by a quantile transformation to standard-normal marginals, fitted on each training fold. Second, the training budget is small: 300 gradient steps of 16 positive and 16 background rows show each background row about once and each positive about 400 times, whereas the deviation loss is meant to learn what the background looks like, and the original DevNet trains on about fifty times more rows \citep{Pang2019}. Training ten times longer raised random-split AP in every province but lowered spatial transfer (Superior, 100~km blocks: AP 0.190 against 0.209), so two alternatives were tested. \emph{DevNet-BG} keeps 300 steps and 16 positives per step but draws 240 background rows per step, so that each background row is seen about 14 times while positive exposure is unchanged. \emph{DevNet-ES} chooses the number of steps, between 100 and 3,000, inside each outer training fold by a nested 100~km spatial cross-validation (three inner folds, two inner restarts, background purged from inner validation blocks), so the test fold is never used for the choice.
+
+Tables~\ref{tab:sensitivity} and \ref{tab:sensitivity-sup} summarise the results. DevNet-QT raises DevNet's AP in Superior under every protocol (random 0.328, 50~km 0.322, 100~km 0.278, 200~km 0.308, against 0.272, 0.239, 0.209 and 0.235; higher in five or six of six repeats), and its advantage over RF under spatial blocking becomes large and consistent ($\Delta$AP $+0.197$ to $+0.321$, $p \leq 0.009$, all six repeats). In Cordillera and Grenville it raises random-split AP (Grenville 0.040 to 0.113) but, like every other model, it does not transfer between blocks. DevNet-BG improves Superior AP more modestly (0.280, 0.298, 0.244 and 0.244), again with a significant advantage over RF at 100 and 200~km ($p = 0.003$), and leaves the other provinces essentially unchanged. DevNet-ES selects short training in Superior and Cordillera (median 200--300 and 100--300 steps) and longer training only in Grenville (750--1,000 steps), and performs close to the original DevNet.
+
+Taken together, the original 300-step budget is not what limits transfer: training longer repeats the few positives more often and favours memorisation, whereas exposing each update to more background without repeating the positives more often, or presenting the inputs on a rank-like scale, improves DevNet where a transferable signal exists. The main conclusion, DevNet's advantage under spatial validation in Superior, is therefore if anything conservative with respect to these choices. Because the variants were introduced after the main analysis, they should be confirmed on independent data before being adopted.
+
+\begin{table}[!h]
+\caption{Average precision (median over six repeats) of the original DevNet, the three post-diagnostic variants and RF, on identical folds. In brackets: number of repeats in which the variant's AP exceeds the original DevNet's. Bold: highest AP in each row.}\label{tab:sensitivity}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}lllllll}
+\toprule
+Region & Split & RF & DevNet & DevNet-QT & DevNet-BG & DevNet-ES \\
+\midrule
+\multirow{4}{*}{Superior} & random & 0.214 & 0.272 & \textbf{0.328} (5/6) & 0.280 (4/6) & 0.283 (4/6) \\
+ & 50 km blocks & 0.128 & 0.239 & \textbf{0.322} (6/6) & 0.298 (5/6) & 0.236 (2/6) \\
+ & 100 km blocks & 0.128 & 0.209 & \textbf{0.278} (5/6) & 0.244 (6/6) & 0.228 (5/6) \\
+ & 200 km blocks & 0.094 & 0.235 & \textbf{0.308} (6/6) & 0.244 (4/6) & 0.222 (2/6) \\
+\midrule
+\multirow{4}{*}{Cordillera} & random & \textbf{0.379} & 0.113 & 0.128 (5/6) & 0.122 (3/6) & 0.127 (4/6) \\
+ & 50 km blocks & 0.056 & 0.054 & 0.044 (3/6) & 0.058 (3/6) & \textbf{0.067} (4/6) \\
+ & 100 km blocks & \textbf{0.021} & 0.021 & 0.019 (1/6) & 0.018 (0/6) & 0.015 (0/6) \\
+ & 200 km blocks & 0.018 & \textbf{0.024} & 0.018 (3/6) & 0.020 (1/6) & 0.015 (1/6) \\
+\midrule
+\multirow{4}{*}{Grenville} & random & \textbf{0.265} & 0.040 & 0.113 (6/6) & 0.049 (6/6) & 0.064 (6/6) \\
+ & 50 km blocks & \textbf{0.072} & 0.012 & 0.033 (6/6) & 0.015 (4/6) & 0.019 (5/6) \\
+ & 100 km blocks & 0.006 & 0.005 & \textbf{0.008} (6/6) & 0.005 (1/6) & 0.005 (4/6) \\
+ & 200 km blocks & \textbf{0.007} & 0.004 & 0.007 (6/6) & 0.005 (5/6) & 0.005 (4/6) \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\begin{table}[!h]
+\caption{Superior: paired comparisons of each post-diagnostic variant with the original DevNet and with RF ($\Delta$AP on repeat-averaged out-of-fold ranks with 95\% bootstrap interval, one-sided $p$, and repeats won). QT, BG, ES: DevNet-QT, DevNet-BG, DevNet-ES.}\label{tab:sensitivity-sup}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep\fill}llcccccc}
+\toprule
+ & & \multicolumn{3}{c}{vs original DevNet} & \multicolumn{3}{c}{vs RF} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+Split & Variant & $\Delta$AP [95\%] & $p$ & wins & $\Delta$AP [95\%] & $p$ & wins \\
+\midrule
+random & QT & +0.137 [-0.018, +0.237] & 0.043 & 5/6 & +0.159 [-0.068, +0.375] & 0.093 & 6/6 \\
+random & BG & +0.073 [-0.026, +0.138] & 0.086 & 4/6 & +0.095 [-0.112, +0.317] & 0.192 & 5/6 \\
+random & ES & +0.047 [-0.121, +0.146] & 0.334 & 4/6 & +0.069 [-0.130, +0.267] & 0.240 & 5/6 \\
+\addlinespace
+50 km & QT & +0.158 [-0.011, +0.272] & 0.039 & 6/6 & +0.265 [+0.047, +0.478] & 0.009 & 6/6 \\
+50 km & BG & +0.046 [-0.035, +0.145] & 0.149 & 5/6 & +0.153 [-0.041, +0.408] & 0.056 & 6/6 \\
+50 km & ES & +0.062 [-0.022, +0.165] & 0.087 & 2/6 & +0.169 [-0.030, +0.428] & 0.045 & 6/6 \\
+\addlinespace
+100 km & QT & +0.081 [-0.075, +0.198] & 0.194 & 5/6 & +0.197 [+0.029, +0.349] & 0.009 & 6/6 \\
+100 km & BG & +0.097 [-0.031, +0.175] & 0.094 & 6/6 & +0.212 [+0.054, +0.336] & 0.003 & 6/6 \\
+100 km & ES & +0.004 [-0.062, +0.057] & 0.411 & 5/6 & +0.119 [-0.023, +0.285] & 0.048 & 5/6 \\
+\addlinespace
+200 km & QT & +0.104 [-0.031, +0.222] & 0.077 & 6/6 & +0.321 [+0.107, +0.515] & 0.001 & 6/6 \\
+200 km & BG & +0.040 [-0.035, +0.120] & 0.216 & 4/6 & +0.257 [+0.060, +0.459] & 0.003 & 6/6 \\
+200 km & ES & -0.017 [-0.089, +0.043] & 0.740 & 2/6 & +0.200 [+0.020, +0.405] & 0.011 & 6/6 \\
+\botrule
+\end{tabular*}
+\end{table}
+
+\end{appendices}
+
+\clearpage
+
+\bibliography{references}
+
+\end{document}

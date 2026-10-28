@@ -8,27 +8,27 @@ pipeline has exactly one place to change a hyperparameter or a data path.
 
 Data-path philosophy
 ---------------------
-This repository ships NO raw data (rasters, shapefiles, CSVs, deposit
-tables). All paths below are *relative* and default to sitting one level
-above this repo, mirroring the layout the original research notebook used:
+This repository ships no third-party layers (rasters, shapefiles). The
+small inputs that define the problem -- the deposit tables and the study-area
+outlines -- are versioned once, under data/, and are read from there; the
+large layers default to a dataset/ folder one level above this repo:
 
     <parent_of_repo>/
-        dataset/            <- DATA_ROOT
-        code/                <- this repo
-            ...
-            <deposit CSVs>   <- DEPOSITS_ROOT (defaults to '.', i.e. wherever
-                                the pipeline is actually run from)
+        dataset/            <- DATA_ROOT (rasters, vectors, points, h3_grid)
+        <this repo>/
+            data/labels/    <- DEPOSITS_ROOT
+            data/outlines/  <- OUTLINE_DIR
 
 Every root can be overridden with an environment variable so the pipeline
 can be pointed at data stored anywhere, without editing this file:
 
     REE_DATA_ROOT       (default: '../dataset')
-    REE_DEPOSITS_ROOT     (default: '.')
+    REE_DEPOSITS_ROOT     (default: <repo>/data/labels)
     REE_TABLE_DIR         (default: '.', output CSV tables -- see TABLE_DIR)
     REE_RASTER_DIR        (default: '{DATA_ROOT}/rasters')
     REE_VECTOR_DIR        (default: '{DATA_ROOT}/vectors')
     REE_POINT_DIR         (default: '{DATA_ROOT}/points')
-    REE_OUTLINE_DIR       (default: '{DATA_ROOT}/outlines')
+    REE_OUTLINE_DIR       (default: <repo>/data/outlines)
     REE_H3_GRID_DIR       (default: '{DATA_ROOT}/h3_grid')
 
 See data/README.md for exactly what each root is expected to contain.
@@ -69,12 +69,13 @@ that needs it: `sampleable_domain.build_all(..., glcm_rasters=glcm_rasters)`,
 import os
 
 # ── Data roots (override via environment variables, see module docstring) ──
+_REPO          = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_ROOT      = os.environ.get('REE_DATA_ROOT', '../dataset')
-DEPOSITS_ROOT  = os.environ.get('REE_DEPOSITS_ROOT', '.')
+DEPOSITS_ROOT  = os.environ.get('REE_DEPOSITS_ROOT', os.path.join(_REPO, 'data', 'labels'))
 RASTER_DIR     = os.environ.get('REE_RASTER_DIR', f'{DATA_ROOT}/rasters')
 VECTOR_DIR     = os.environ.get('REE_VECTOR_DIR', f'{DATA_ROOT}/vectors')
 POINT_DIR      = os.environ.get('REE_POINT_DIR', f'{DATA_ROOT}/points')
-OUTLINE_DIR    = os.environ.get('REE_OUTLINE_DIR', f'{DATA_ROOT}/outlines')
+OUTLINE_DIR    = os.environ.get('REE_OUTLINE_DIR', os.path.join(_REPO, 'data', 'outlines'))
 H3_GRID_DIR    = os.environ.get('REE_H3_GRID_DIR', f'{DATA_ROOT}/h3_grid')
 
 # ── Output roots (override via environment variables) ──────────────────────

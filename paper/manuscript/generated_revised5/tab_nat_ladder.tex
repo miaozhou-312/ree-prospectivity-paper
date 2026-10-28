@@ -1,0 +1,14 @@
+R0 & Design of Parsa et al.: four L13 children per occurrence cell; negatives from the 5\% least cosine-similar cells; child-level random 70/30 & balanced & 1.000 & 1.000 & 97\% \\
+R1 & Negatives at random ($>$10~km from occurrences) & balanced & 0.996 & 0.997 & 97\% \\
+R2 & Children of one parent cell kept on one side & balanced & 0.920 & 0.924 &  \\
+R2c & \quad control: R2 with cosine-dissimilar negatives & balanced & 1.000 & 1.000 &  \\
+R3 & No augmentation: one label per occurrence cell & balanced & 0.880 & 0.892 &  \\
+R3c & \quad control: R3 with cosine-dissimilar negatives & balanced & 0.997 & 0.997 &  \\
+R4 & R3 models scored against realistic background & 0.3\% & 0.893 & 0.184 &  \\
+R4c & \quad control: R3c models against realistic background & 0.3\% & 0.859 & 0.091 &  \\
+R5 & Trained on the occurrence cells and a shared background sample & 0.3\% & 0.903 & 0.292 &  \\
+R6 & 100~km spatial blocks, background purged & 0.3\% & 0.840 & 0.034 &  \\
+R7 & Leave one province group out: Superior held out & 0.5\% & 0.631 & 0.007 & \\
+ & \quad Cordillera held out & 0.9\% & 0.745 & 0.246 & \\
+ & \quad Grenville held out & 0.4\% & 0.570 & 0.025 & \\
+ & \quad rest of Canada held out & 0.1\% & 0.713 & 0.135 & \\
