@@ -74,6 +74,11 @@ def child_feature_table(region, cfg, clipped_r, clipped_v, worm_trees, cols):
     pts = add_proximity_worms(pts, worm_trees, config.PROJECTED_CRS)
     pts = add_rasters(pts, clipped_r)
     pts = add_glcm_features(pts, clipped_r, GLCM_RASTERS)
+    if rec.get('featureset') == 'reencoded':   # feature set 3: add regional geology, neighbourhood, raw H3 classes
+        p29 = __import__('importlib').import_module('paper_analyses.29_production_fs3')
+        base = [c for c in cols if c in rec['pruned_cols']]
+        X = p29.set3_rows(region, rec, cols, {'c': (pts[base].reset_index(drop=True), ch.lon.values, ch.lat.values)})['c']
+        return X, meta['parent'].values, pos
     for c in cols:                      # a terrane dummy absent at every child
         if c not in pts:
             pts[c] = 0.0

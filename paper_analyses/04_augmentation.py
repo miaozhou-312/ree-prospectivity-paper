@@ -128,7 +128,23 @@ def part_b(region, n_syn=150):
     print(diag.to_string(index=False, float_format=lambda v: f'{v:.3f}'))
     diag.to_csv(out_path(f'augmentation_diagnostics_{region}.csv'), index=False)
 
-    # Figure: PCA view (fit on background + real positives) + WGAN-GP training curve
+    plot_pca(Zb, Zp, samples, hist, out_path(f'fig_augmentation_{region}.png'))
+
+
+def pca_inputs(region, n_syn=150):
+    """The inputs of part B's figure without the DevNet diagnostics: the
+    standardised background and positives, the samples and the WGAN-GP
+    training history (same seeds as part B)."""
+    d = load_region(region)['pruned']
+    X_pos, X_bg = d['X_lab'][d['y'] == 1], d['X_unl']
+    space = augment._Space(X_pos, X_bg, d['cols'])
+    _, hist = augment.train_wgan_gp(space.to_z(X_pos), seed=2024, return_history=True)
+    samples = {m: space.to_z(augment.synthesize(m, X_pos, X_bg, d['cols'], n_syn, seed=2024)) for m in METHODS}
+    return space.to_z(X_bg), space.to_z(X_pos), samples, hist
+
+
+def plot_pca(Zb, Zp, samples, hist, path, sample_label='synthetic'):
+    """PCA view (fit on background + real positives) + WGAN-GP training curve."""
     pca = PCA(n_components=2).fit(np.vstack([Zb, Zp]))
     fig, axes = plt.subplots(1, 4, figsize=(17, 4.2))
     titles = {'jitter': 'Gaussian jitter', 'smote': 'SMOTE', 'wgan': 'WGAN-GP'}
@@ -136,7 +152,7 @@ def part_b(region, n_syn=150):
     for ax, m in zip(axes[:3], METHODS):
         Ps = pca.transform(samples[m])
         ax.scatter(Pb[:, 0], Pb[:, 1], s=3, c='#bbbbbb', alpha=0.4, label='background', rasterized=True)
-        ax.scatter(Ps[:, 0], Ps[:, 1], s=10, c='#e69f00', alpha=0.7, label='synthetic')
+        ax.scatter(Ps[:, 0], Ps[:, 1], s=10, c='#e69f00', alpha=0.7, label=sample_label)
         ax.scatter(Pp[:, 0], Pp[:, 1], s=40, c='#d03b3b', edgecolor='k', lw=0.5, label='real positive')
         ax.set_title(f'({"abc"[METHODS.index(m)]}) {titles[m]}', loc='left', fontsize=11)
         ax.set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0] * 100:.0f}%)')
@@ -148,8 +164,9 @@ def part_b(region, n_syn=150):
     axes[3].set_ylabel('critic estimate of W-distance')
     axes[3].set_title('(d) WGAN-GP training', loc='left', fontsize=11)
     plt.tight_layout()
-    fig.savefig(out_path(f'fig_augmentation_{region}.png'), dpi=300, bbox_inches='tight')
-    print('saved', out_path(f'fig_augmentation_{region}.png'))
+    fig.savefig(path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print('saved', path)
 
 
 def part_c(region, blocks=(100.0, 200.0), configs=(('none', 0), ('jitter', 10), ('smote', 3), ('wgan', 3),

@@ -100,3 +100,11 @@ def paired_bootstrap(y, s_a, s_b, n_boot=5000, seed=0):
         'd_auc': roc_auc_score(y, s_a) - roc_auc_score(y, s_b),
         'd_auc_ci': tuple(np.percentile(d_auc, [2.5, 97.5])), 'p_auc': float((d_auc <= 0).mean()),
     }
+
+
+def run_protocol(proto, X_lab, y, xy_lab_km, X_bg, xy_bg_km, make_scorer, n_splits, n_repeats, seed):
+    """`proto` is 'random' or a block size in km."""
+    if proto == 'random':
+        return repeated_random_cv(X_lab, y, X_bg, make_scorer, n_splits, n_repeats, seed)
+    return repeated_spatial_cv(X_lab, y, xy_lab_km, X_bg, xy_bg_km, make_scorer, block_km=proto,
+                               n_splits=n_splits, n_repeats=n_repeats, seed=seed)

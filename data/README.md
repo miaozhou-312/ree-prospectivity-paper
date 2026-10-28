@@ -34,32 +34,23 @@ The pipeline expects the downloaded layers in a `dataset/` folder that sits
 │   ├── rasters/     <- 17 national grids (.tif / .flt + sidecars), any subfolders
 │   ├── vectors/     <- 2 line layers (.geojson / .shp)
 │   ├── points/      <- 4 point layers (.shp + sidecars)
-│   ├── outlines/    <- copy of data/outlines/*.geojson
 │   └── h3_grid/     <- exactly one file set: Geology_H3Grid_Canada.shp (+ sidecars)
 └── <this repo>/
-    ├── Cordillera_REE_deposits_deduped_2.0km.csv   <- copies of the three
-    ├── Superior_REE_deposits_deduped_2.0km.csv        data/labels/*.csv
-    └── Grenville_REE_deposits_deduped_2.0km.csv       (the notebook's
-                                                       DEPOSITS_ROOT is '..')
+    └── data/
+        ├── labels/      <- deposit tables, read in place (DEPOSITS_ROOT)
+        └── outlines/    <- study-area outlines, read in place (OUTLINE_DIR)
 ```
 
 **With the project's prepared data archive** (`ree_dataset_public.zip` and
 `ree_dataset_getech.zip`, kept privately and not distributed with this
 repository): unzip both in the folder that contains this repository, which
-creates `../dataset/` with every layer, the outlines, the labels and the
-geochemistry already in place, then run only the last `cp` line below.
+creates `../dataset/` with every layer and the geochemistry in place. The
+archive also carries copies of the labels and outlines, which are not needed:
+the pipeline and the notebook read them from `data/` in this repository.
 
-**Assembling it yourself:** from the repository root, after downloading the
-layers in Section 2 into `../dataset/{rasters,vectors,points,h3_grid}`:
-
-```bash
-mkdir -p ../dataset/outlines
-cp data/outlines/*.geojson ../dataset/outlines/
-cp data/labels/*_REE_deposits_deduped_2.0km.csv .
-```
-
-The root copies of the label tables are git-ignored, so they are never
-committed twice. Symlinks work just as well as copies for every root.
+**Assembling it yourself:** download the layers in Section 2 into
+`../dataset/{rasters,vectors,points,h3_grid}`. Every root can be pointed
+elsewhere with the environment variables listed in `src/config.py`.
 
 Budget roughly **5 GB** of disk for the layers (about 3.4 GB of rasters and a
 ~1.8 GB H3 terrane grid) plus ~1 GB of clipped-raster cache per full run. The
@@ -214,6 +205,18 @@ sources -- counts once. Each row keeps a `dep_type` confidence class
 
 `ablation_no_dedup/` holds the same pooled tables without deduplication,
 used by the leakage ablation.
+
+**National scale (`national/`).** Built by `paper_analyses/40_national_labels.py`.
+`Canada.geojson` is the union of the onshore provinces of GSC Map 1860A
+(`GEOPROV.SHP`: every named province, orogen and platform except the
+continental shelves and oceanic crust; 12.3 million km²). `provinces.geojson`
+holds the provinces dissolved by name, with the three study provinces as their
+regional polygons and province windows smaller than 2,000 km² (such as the
+Churchill-basement windows in the Cordillera) merged into the province around
+them. `Canada_REE_deposits_deduped_2.0km.csv` is the national label table: the
+three regional tables as they are (15 + 28 + 12) plus 13 occurrences elsewhere,
+deduplicated with the same 2 km rule; records within 2 km of a regional
+occurrence (Switch Creek, Terres Rompues) count as that occurrence.
 
 **Geochemistry (experiments only).** `experiments/00_data_preparation/extract_canada_data.ipynb`
 streams `complete.csv` in chunks and keeps `country_id == 32` (Canada,

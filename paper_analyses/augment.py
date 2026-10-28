@@ -42,8 +42,13 @@ class _Space:
         self.binary = [j for j in range(X.shape[1]) if set(np.unique(Xi[:, j])).issubset({0.0, 1.0})]
         groups = {}
         for j in self.binary:
-            prefix = 'geo_era_' if cols[j].startswith('geo_era_') else (
-                'lith_' if cols[j].startswith('lith_') else cols[j])
+            c = cols[j]
+            if c in ('lith_contact', 'age_contact'):        # feature set 3: single flags
+                prefix = c
+            elif c.startswith(('geo_era_', 'era_', 'lith_')):  # one-hot groups (sets 1 and 3)
+                prefix = c.split('_')[0] + ('_era_' if c.startswith('geo_era_') else '_')
+            else:
+                prefix = c
             groups.setdefault(prefix, []).append(j)
         self.groups = list(groups.values())
 

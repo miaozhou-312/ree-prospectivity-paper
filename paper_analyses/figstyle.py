@@ -29,9 +29,30 @@ _EXACT = {
 }
 
 
+_NEW = {
+    'dist_regional_contact': 'Distance to regional lith. contact',
+    'dist_regional_age_contact': 'Distance to regional age contact',
+    'dist_greenstone': 'Distance to regional greenstone',
+    'dist_mafic_ultramafic': 'Distance to regional mafic-ultramafic',
+    'dist_highgrade': 'Distance to regional high-grade metam.',
+    'dist_sedimentary': 'Distance to regional sedimentary',
+    'lith_contact': 'Lithological contact (H3 cell)',
+    'age_contact': 'Age contact (H3 cell)',
+    'lith_other': 'Lith.: other (rare classes)',
+}
+_SHORT = {'BA': 'BA', 'BA_HP40km': 'BA high-pass 40 km', 'DRTP': 'DRTP', 'TMI': 'TMI'}
+
+
 def pretty(col):
     if col in _EXACT:
         return _EXACT[col]
+    if col in _NEW:
+        return _NEW[col]
+    for stat, word in (('_mean10km', 'mean'), ('_std10km', 'std. dev.')):
+        if col.endswith(stat) and col[:-len(stat)] in _SHORT:
+            return f'{_SHORT[col[:-len(stat)]]} {word} (10 km)'
+    if col.startswith('era_'):
+        return f"Era: {col[len('era_'):]}"
     if col.startswith('geo_era_'):
         return f"Era: {col[len('geo_era_'):]}"
     if col.startswith('lith_'):

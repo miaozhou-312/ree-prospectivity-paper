@@ -22,7 +22,13 @@ import random
 import numpy as np
 
 WORK_DIR = os.path.abspath(os.environ.get('REE_PAPER_WORK', '../work'))
-OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out')
+# REE_FEATURESET=reencoded reruns any stage on feature set 3 (raw H3 geology +
+# extended layers, Stages 24-26): load_region() then serves the set-3
+# matrices as rec['pruned'] (and rec['full']), and outputs go to out/fs3/ so
+# that the original results are never overwritten.
+FEATURESET = os.environ.get('REE_FEATURESET', '')
+OUT_DIR = os.environ.get('REE_PAPER_OUT') or \
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'out', *(['fs3'] if FEATURESET == 'reencoded' else []))
 CACHE_DIR = os.path.join(WORK_DIR, 'region_cache')
 
 # Route src/'s output directories away from the repository before src.config
@@ -36,7 +42,12 @@ os.environ.setdefault('REE_GIS_EXPORT_DIR', os.path.join(WORK_DIR, 'gis_export')
 from src import config  # noqa: E402
 
 # The notebook pins this GLCM subset instead of prompting (README, Section 1).
+# REE_GLCM=all (Stage 51 onwards) takes the texture of every gravity and
+# magnetic grid instead; pruning removes the redundant ones.
 GLCM_RASTERS = ['Canada_BA', 'Canada_BA_HP40km', 'DRTP', 'TMI']
+if os.environ.get('REE_GLCM') == 'all':
+    GLCM_RASTERS = ['Canada_BA', 'Canada_BA_1VD', 'Canada_BA_THD', 'Canada_BA_THD_Tilt', 'Canada_BA_HP40km',
+                    'Canada_BA_HP100km', 'TMI', 'DRTP', 'DRTP_1VD', 'DRTP_THD', 'DRTP_THD_Tilt']
 REGION_ORDER = ['Superior', 'Cordillera', 'Grenville']   # Superior is the paper's focus
 
 
@@ -66,11 +77,30 @@ def region_cache_path(name):
     return os.path.join(CACHE_DIR, f'{name}.pkl')
 
 
+_OVERRIDING = False
+
+
 def load_region(name):
     """Cached output of 00_build_features: dict with pts, pruned_cols,
-    full_cols and the labelled/unlabelled raw matrices for both feature sets."""
+    full_cols and the labelled/unlabelled raw matrices for both feature sets.
+    With REE_FEATURESET=reencoded, 'pruned' and 'full' hold feature set 3."""
+    global _OVERRIDING
     with open(region_cache_path(name), 'rb') as f:
-        return pickle.load(f)
+        rec = pickle.load(f)
+    if FEATURESET == 'reencoded' and not _OVERRIDING:
+        import contextlib
+        import importlib
+        import io
+        _OVERRIDING = True
+        try:
+            s25 = importlib.import_module('paper_analyses.25_extended_benchmark')
+            with contextlib.redirect_stdout(io.StringIO()):
+                _, cols, X_lab, X_unl, _ = s25.extended_matrices(name, 'reencoded')
+        finally:
+            _OVERRIDING = False
+        m = {'cols': cols, 'X_lab': X_lab, 'X_unl': X_unl, 'y': rec['pruned']['y']}
+        rec['pruned'], rec['full'], rec['featureset'] = m, dict(m), 'reencoded'
+    return rec
 
 
 def save_pickle(obj, path):

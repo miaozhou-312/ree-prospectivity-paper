@@ -92,6 +92,8 @@ def fingerprint(rec, cols):
     y = np.r_[rec['full']['y'], np.zeros(len(rec['full']['X_unl']))]
     out = {}
     for name in ['GeophysicsLAB_USCanada', 'USCanada_Moho']:
+        if name not in cols:             # pruned away in some feature sets
+            continue
         j = cols.index(name)
         pos_vals = set(np.round(X[y == 1, j], 6))
         bg = np.round(X[y == 0, j], 6)

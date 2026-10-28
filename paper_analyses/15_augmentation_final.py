@@ -98,5 +98,49 @@ def main():
     save_pickle(sstore, out_path('augmentation_final_spatial_Superior.pkl'))
 
 
+def spatial_one(block, method, mult):
+    """Part C for one configuration (for running the ten in parallel)."""
+    rec = load_region(REGION)
+    d = rec['pruned']
+    base = _fin.final_factory(REGION)
+    xy_lab = project_xy(rec['lab']['lat'], rec['lab']['lon'], config.PROJECTED_CRS) / 1000.0
+    xy_bg = project_xy(rec['unl']['lat'], rec['unl']['lon'], config.PROJECTED_CRS) / 1000.0
+    seed_everything()
+    fac = base if method == 'none' else augment.augmented_factory(base, method, mult, d['cols'])
+    res = repeated_spatial_cv(d['X_lab'], d['y'], xy_lab, d['X_unl'], xy_bg, fac, block_km=block,
+                              n_splits=config.CV_N_SPLITS, n_repeats=config.CV_N_REPEATS, seed=config.RANDOM_SEED)
+    save_pickle(res, out_path(f'augmentation_final_spatial_part_{block:.0f}_{method}_{mult}.pkl'))
+    print(f"[C | {block:.0f} km] DevNet {method} x{mult}: AP {res['ap_med']:.3f}", flush=True)
+
+
+def spatial_merge():
+    """Part C's table from the ten single-configuration runs (same rows as main())."""
+    from paper_analyses.common import load_pickle
+    y = load_region(REGION)['pruned']['y']
+    srows, sstore = [], {}
+    for block in [100.0, 200.0]:
+        ref = load_pickle(out_path(f'augmentation_final_spatial_part_{block:.0f}_none_0.pkl'))
+        for method, mult in SPATIAL_CONFIGS:
+            res = load_pickle(out_path(f'augmentation_final_spatial_part_{block:.0f}_{method}_{mult}.pkl'))
+            sstore[(block, 'DevNet', method, mult)] = res
+            row = {'block_km': block, 'model': 'DevNet', 'method': method, 'mult': mult, 'auc_med': res['auc_med'],
+                   'ap_med': res['ap_med'], 'ap_lo': res['ap_ci'][0], 'ap_hi': res['ap_ci'][1]}
+            if method != 'none':
+                bt = paired_bootstrap(y, res['oof_mean'], ref['oof_mean'], seed=config.RANDOM_SEED)
+                row.update({'d_ap_vs_none': bt['d_ap'], 'd_ap_lo': bt['d_ap_ci'][0], 'd_ap_hi': bt['d_ap_ci'][1],
+                            'p_ap_gain': bt['p_ap'],
+                            'ap_wins_vs_none': f"{int((res['aps'] > ref['aps']).sum())}/{len(res['aps'])}"})
+            srows.append(row)
+    pd.DataFrame(srows).to_csv(out_path('augmentation_final_spatial_Superior.csv'), index=False)
+    save_pickle(sstore, out_path('augmentation_final_spatial_Superior.pkl'))
+    print(pd.DataFrame(srows)[['block_km', 'method', 'mult', 'ap_med']].to_string(index=False))
+
+
 if __name__ == '__main__':
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == 'spatial':          # spatial <block> <method> <mult>
+        spatial_one(float(sys.argv[2]), sys.argv[3], int(sys.argv[4]))
+    elif len(sys.argv) > 1 and sys.argv[1] == 'merge':
+        spatial_merge()
+    else:
+        main()

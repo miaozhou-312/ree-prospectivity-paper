@@ -152,8 +152,48 @@ def nnpu_factory(region, prior=0.01, restarts=None):
     return make
 
 
+# ── XGBoost (gradient-boosted trees) ────────────────────────────────────────
+# Fixed parameters of the national study of J. Fang (irp-jf1522: XGB_BASE plus
+# the "unified clean-mode" setting), not tuned here. Trained like RF on the
+# fold's positives against the shared training background labelled 0, with
+# the positives up-weighted to balance the classes (scale_pos_weight, the
+# analogue of RF's class_weight='balanced') and the same median imputation.
+XGB_PARAMS = dict(n_estimators=200, max_depth=2, learning_rate=0.1, subsample=0.8, colsample_bytree=0.8,
+                  min_child_weight=3, reg_lambda=2.0, reg_alpha=0.5, gamma=0, objective='binary:logistic',
+                  tree_method='hist', n_jobs=2)
+
+
+def xgb_factory(region):
+    """Each fit runs in paper_analyses.xgb_worker (a process without PyTorch;
+    see that module for why)."""
+    import os
+    import pickle
+    import subprocess
+    import sys
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def make(X_bg_raw):
+        def scorer(X_tr_raw, y_tr, X_va_raw, seed_counter=0):
+            X_pos = X_tr_raw[y_tr == 1]
+            X = np.vstack([X_pos, X_bg_raw])
+            y = np.r_[np.ones(len(X_pos)), np.zeros(len(X_bg_raw))]
+            imp = SimpleImputer(strategy='median').fit(X)
+            params = dict(XGB_PARAMS, scale_pos_weight=len(X_bg_raw) / max(len(X_pos), 1),
+                          random_state=config.RANDOM_SEED + seed_counter)
+            job = pickle.dumps({'X': imp.transform(X), 'y': y, 'X_va': imp.transform(X_va_raw), 'params': params})
+            env = dict(os.environ, PYTHONPATH=repo)
+            out = subprocess.run([sys.executable, '-m', 'paper_analyses.xgb_worker'], input=job, capture_output=True,
+                                 cwd=repo, env=env)
+            if out.returncode != 0:
+                raise RuntimeError(f'xgb_worker failed: {out.stderr.decode()[-2000:]}')
+            return pickle.loads(out.stdout)
+        return scorer
+    return make
+
+
 MODEL_FACTORIES = {
     'RF': rf_factory,
+    'XGBoost': xgb_factory,
     'RF_fixedseed': rf_fixed_factory,
     'DevNet': devnet_factory,
     'BaggingPU': bagging_pu_factory,

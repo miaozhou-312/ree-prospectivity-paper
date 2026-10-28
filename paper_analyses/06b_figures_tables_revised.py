@@ -37,6 +37,7 @@ LABEL = {'DevNet': 'DevNet', 'RF': 'RF', 'BaggingPU': 'Bagging-PU', 'nnPU': 'nnP
 COLORS = {'DevNet': '#d03b3b', 'RF': '#2a78d6', 'BaggingPU': '#3a9e5c', 'nnPU': '#8a5cc2'}
 REGIONS = ['Superior', 'Cordillera', 'Grenville']
 PROTOS = [0, 50, 100, 200]
+AUG_XLABEL = 'synthetic positives per real training positive'
 plt.rcParams.update({'font.size': 9, 'axes.spines.top': False, 'axes.spines.right': False})
 
 
@@ -284,7 +285,7 @@ def augmentation():
             ax.errorbar(np.arange(3) + (k - 1) * 0.15, s.ap_med, yerr=[s.ap_med - s.ap_lo, s.ap_hi - s.ap_med],
                         fmt='o-', ms=4, capsize=2, color=['#0072b2', '#009e73', '#e69f00'][k], label=names[meth])
         ax.set_xticks(np.arange(3), ['1$\\times$', '3$\\times$', '10$\\times$'])
-        ax.set_xlabel('synthetic positives per real training positive')
+        ax.set_xlabel(AUG_XLABEL)
         ax.set_title(f'({"ab"[["DevNet", "RF"].index(model)]}) {model}', loc='left', fontsize=10)
     axes[0].set_ylabel('average precision (median, 95% interval)')
     axes[0].legend(frameon=False, fontsize=8)
@@ -430,11 +431,111 @@ def workflow():
     fig.savefig(os.path.join(FIG, 'fig_workflow_rev.png'), dpi=300, bbox_inches='tight')
     plt.close(fig)
 
+PNAME = {0: 'random', 50: '50 km', 100: '100 km', 200: '200 km'}
+
+
+def region_diagnostics():
+    d = pd.read_csv(o('region_diagnostics.csv')).set_index('region')
+    lines = []
+    for r in REGIONS:
+        x = d.loc[r]
+        lines.append(f"{r} & {int(x.n_pos)} & {int(x.sites_10km)} & {x.share_in_multi_site:.0%} & {x.median_nn_km:.0f} & "
+                     f"{int(x.host_era_classes)} & {x.median_abs_auc_dev:.2f} & {int(x['n_features_abs_dev_ge_0.25'])} & "
+                     f"{x.far_neighbour_index_geo:.3f} & {x.fni_geo_random_ref_median:.3f} [{x.fni_geo_random_ref_p05:.3f}] \\\\"
+                     .replace('%', '\\%'))
+    write('tab_region_diag.tex', '\n'.join(lines))
+
+
+def occurrence_breakdown():
+    t = pd.read_csv(o('occurrence_breakdown_summary_Superior.csv'))
+    models = [m for m in ['DevNet', 'MLP-BCE', 'RF', 'BaggingPU', 'nnPU'] if m in set(t.model)]
+    lines = []
+    for proto in ['random', '100 km']:
+        for k, g in enumerate(['Abitibi cluster', 'dispersed']):
+            cells = []
+            for m in models:
+                x = t[(t.protocol == proto) & (t.model == m) & (t.group == g)].iloc[0]
+                cells.append(f'{x.median_pct:.3f} ({int(round(x.top1 * x.n))}/{int(x.n)})')
+            lab = f'\\multirow{{2}}{{*}}{{{proto}}}' if k == 0 else ''
+            lines.append(f"{lab} & {g} ({int(x.n)}) & " + ' & '.join(cells) + ' \\\\')
+        lines.append('\\addlinespace')
+    write('tab_occurrence.tex', '\n'.join(lines[:-1]))
+
+
+def per_region(prefix):
+    """Concatenate per-region result files (Stages 16-18 can run one region per process)."""
+    import glob
+    df = pd.concat([pd.read_csv(f) for f in sorted(glob.glob(o(prefix + '*.csv')))], ignore_index=True)
+    return df.drop_duplicates([c for c in df.columns if c in ('region', 'model', 'subset', 'block_km')], keep='last')
+
+
+def controls():
+    c = per_region('controls_MLPBCE_RFtuned_HGBtuned_')
+    dn = pd.read_csv(o('devnet_final.csv'))
+    bm = pd.read_csv(o('benchmark_Superior_Cordillera_Grenville.csv'))
+    sp = pd.read_csv(o('spatial_cv_Superior_Cordillera_Grenville.csv'))
+    lines = []
+    for r in REGIONS:
+        for k, b in enumerate(PROTOS):
+            rf = (bm[(bm.region == r) & (bm.feature_set == 'pruned') & (bm.model == 'RF')] if b == 0
+                  else sp[(sp.region == r) & (sp.block_km == b) & (sp.model == 'RF')]).ap_med.iloc[0]
+            vals = {'DevNet': dn[(dn.region == r) & (dn.block_km == b)].ap_med.iloc[0], 'RF': rf}
+            for m in ['MLP-BCE', 'RF-tuned', 'HGB-tuned']:
+                vals[m] = c[(c.region == r) & (c.model == m) & (c.block_km == b)].ap_med.iloc[0]
+            best = max(vals.values())
+            lab = f'\\multirow{{4}}{{*}}{{{r}}}' if k == 0 else ''
+            lines.append(f"{lab} & {PNAME[b]} & " + ' & '.join(bold_if(vals[m], best) for m in
+                         ['DevNet', 'MLP-BCE', 'RF', 'RF-tuned', 'HGB-tuned']) + ' \\\\')
+        lines.append('\\midrule' if r != REGIONS[-1] else '')
+    write('tab_controls.tex', '\n'.join(lines))
+    lines = []
+    for b in PROTOS:
+        for m in ['MLP-BCE', 'RF-tuned', 'HGB-tuned']:
+            x = c[(c.region == 'Superior') & (c.model == m) & (c.block_km == b)].iloc[0]
+            lines.append(f"{PNAME[b]} & DevNet $-$ {m} & {x.d_ap_devnet_minus:+.3f} [{x.d_ap_lo:+.3f}, {x.d_ap_hi:+.3f}] & "
+                         f"{x.p_ap:.3f} & {x.devnet_wins} \\\\")
+        lines.append('\\addlinespace')
+    write('tab_controls_boot.tex', '\n'.join(lines[:-1]))
+
+
+def nested():
+    t = per_region('nested_selection_')
+    names = ['quantile, 16+240', 'quantile, 16+16', 'z-score, 16+240', 'z-score, 16+16']
+    lines = []
+    for r in REGIONS:
+        for k, b in enumerate(PROTOS):
+            x = t[(t.region == r) & (t.block_km == b)].iloc[0]
+            lab = f'\\multirow{{4}}{{*}}{{{r}}}' if k == 0 else ''
+            chosen = '/'.join(str(int(x[f'chosen: {n}'])) for n in names)
+            lines.append(f"{lab} & {PNAME[b]} & {x.ap_med:.3f} & {x.ref_ap_final:.3f} & {x.d_ap_vs_final:+.3f} & "
+                         f"{x.ref_ap_RF:.3f} & {x.d_ap_vs_RF:+.3f} ({x.wins_vs_RF}) & {chosen} \\\\")
+        lines.append('\\midrule' if r != REGIONS[-1] else '')
+    write('tab_nested.tex', '\n'.join(lines))
+
+
+def feature_ablation():
+    t = per_region('feature_ablation_')
+    lines = []
+    for r in REGIONS:
+        for k, b in enumerate(PROTOS):
+            cells = []
+            for m in ['DevNet', 'RF']:
+                sub = t[(t.region == r) & (t.model == m) & (t.block_km == b)].set_index('subset')
+                cells += [f"{sub.all_features_ap_med.iloc[0]:.3f}", f"{sub.loc['no-terrane', 'ap_med']:.3f}",
+                          f"{sub.loc['public-only', 'ap_med']:.3f}"]
+            lab = f'\\multirow{{4}}{{*}}{{{r}}}' if k == 0 else ''
+            lines.append(f"{lab} & {PNAME[b]} & " + ' & '.join(cells) + ' \\\\')
+        lines.append('\\midrule' if r != REGIONS[-1] else '')
+    write('tab_features.tex', '\n'.join(lines))
+    n = t.drop_duplicates(['region', 'subset']).set_index(['region', 'subset']).n_features
+    write('tab_features_n.tex', ', '.join(f"{r} {int(n[(r, 'no-terrane')])}/{int(n[(r, 'public-only')])}" for r in REGIONS))
+
 
 if __name__ == '__main__':
     for fn in [workflow, table_benchmark, spatial, capture, geography, augmentation, audit,
-               shap_tables_and_figure, ablation]:
+               shap_tables_and_figure, ablation, region_diagnostics, occurrence_breakdown, controls, nested,
+               feature_ablation]:
         try:
             fn()
-        except FileNotFoundError as e:
+        except (FileNotFoundError, IndexError, KeyError) as e:
             print(f'skip {fn.__name__}: {e}')

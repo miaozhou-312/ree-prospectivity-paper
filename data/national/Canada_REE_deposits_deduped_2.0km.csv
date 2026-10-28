@@ -1,0 +1,69 @@
+Name,source,dep_type,Latitude,Longitude,province
+Abitibi,REE_Canada,Occurrence,49.9369,-75.8919,Superior
+Carb Lake,REE_Canada,Occurrence,54.7834,-92.0001,Superior
+Émilie,REE_Canada,Showing,49.4,-76.5,Superior
+Goéland,REE_Canada,Showing,49.8008,-76.60689999999998,Superior
+Kapuskasing,REE_Canada,Occurrence,49.3011,-82.8079,Superior
+Martison Lake,REE_Canada,Occurrence,50.3146,-83.414,Superior
+Montviel,REE_Canada,Deposit/Prospect,49.824545,-76.53282299999998,Superior
+Nemegosenda Lake,REE_Canada,Occurrence,48.0048,-83.07049999999998,Superior
+Prairie Lake,REE_Canada,Occurrence,49.0387,-86.7185,Superior
+Spanish River,REE_Canada,Occurrence,46.6267,-81.72329999999998,Superior
+Émilie,Parsa_2024,Showing,49.25374890821947,-76.92093682892512,Superior
+Carbonatite du Lac Shortt,Parsa_2024,Deposit/Prospect,49.61088069529491,-75.86211568425058,Superior
+Félifée,Parsa_2024,Showing,49.26540638398779,-76.87989727339209,Superior
+Montviel - Nord (B),Parsa_2024,Deposit/Prospect,49.89165794450988,-76.52977019946445,Superior
+Pole Lake Property ; Lackner Lake,Parsa_2024,Occurrence,47.811144158177406,-83.10364316596315,Superior
+AEG,REE_Canada,Showing,52.1333,-119.1844,Cordillera
+Aley Dykes,REE_Canada,Showing,56.4661,-123.7492,Cordillera
+Bone Creek,REE_Canada,Showing,52.2986,-119.1661,Cordillera
+Carbonatite Syndicate,REE_Canada,Occurrence,54.5047,-122.1506,Cordillera
+Chuchinka,REE_Canada,Showing,54.5676,-122.1648,Cordillera
+Felix,REE_Canada,Showing,52.1627,-118.9612,Cordillera
+Frisby Ridge,REE_Canada,Showing,51.159,-118.29,Cordillera
+Guano,REE_Canada,Occurrence,61.4911,-132.4156,Cordillera
+Gum Creek,REE_Canada,Showing,52.2961,-119.1324,Cordillera
+Howard Creek,REE_Canada,Showing,52.3875,-118.8892,Cordillera
+Lempriere,REE_Canada,Showing,52.4022,-119.1383,Cordillera
+Little Chicago,REE_Canada,Showing,52.3798,-118.9727,Cordillera
+Lonnie,REE_Canada,Occurrence,55.68,-124.3836,Cordillera
+Mount Grace,REE_Canada,Showing,51.4361,-118.8189,Cordillera
+Mud Creek,REE_Canada,Showing,52.1381,-119.1078,Cordillera
+Nokluit,REE_Canada,Occurrence,61.4892,-132.1833,Cordillera
+Pyramid,REE_Canada,Showing,52.3588,-119.1183,Cordillera
+Rar 7,REE_Canada,Occurrence,58.7253,-127.545,Cordillera
+Rock Canyon Creek,REE_Canada,Occurrence,50.2167,-115.1456,Cordillera
+Serpentine,REE_Canada,Showing,52.3827,-119.1109,Cordillera
+Three Valley Gap,REE_Canada,Showing,50.9261,-118.3925,Cordillera
+Virgil,REE_Canada,Occurrence,55.7142,-124.415,Cordillera
+Wicheeda,REE_Canada,Occurrence,54.5333,-122.0847,Cordillera
+Blais Ree,Parsa_2024,Showing,51.59305518301976,-118.80611861837107,Cordillera
+Mc1 Myoff Creek (Mc1104),Parsa_2024,Showing,51.34972063974173,-118.73334048974792,Cordillera
+Moose Creek Bow,Parsa_2024,Deposit/Prospect,51.19444312221138,-116.35111446303716,Cordillera
+Rar 4 Xeno,Parsa_2024,Deposit/Prospect,58.68722174581095,-127.43972224971296,Cordillera
+TAN NIO,Parsa_2024,Showing,51.17833123087037,-118.7433410507318,Cordillera
+Crevier,REE_Canada,Occurrence,49.4679,-72.7765,Grenville
+Lavergne-Springer,REE_Canada,Deposit/Prospect,46.4433,-79.94329999999998,Grenville
+Megiscane Lake,REE_Canada,Occurrence,48.567,-75.59999999999998,Grenville
+Springer,REE_Canada,Occurrence,46.38627,-79.95176999999998,Grenville
+St. Honoré,REE_Canada,Deposit/Prospect,48.53494,-71.153919,Grenville
+Carbonatite De Cantley,Parsa_2024,Showing,45.55556143394475,-75.72194769558027,Grenville
+Carbonatite De Quinnville,Parsa_2024,Showing,45.56665863116596,-75.67371431672977,Grenville
+Carbonatite De Templeton,Parsa_2024,Showing,45.57684770523211,-75.70043225525895,Grenville
+Grand lac Brochet,Parsa_2024,Showing,49.10265361632147,-72.49898452941086,Grenville
+Terres Rompues - Se,Parsa_2024,Showing,48.47162039791921,-71.18171536146166,Grenville
+Allan Lake,Parsa_2024,Occurrence,46.09471494066842,-78.25111508321574,Grenville
+Sullivan Island Carbonatite,Parsa_2024,Occurrence,45.75277393605445,-76.7850023218173,Grenville
+Argor,REE_Canada,Occurrence,50.75,-81.01699999999998,Hudson Bay Lowlands
+Big Spruce Lake,REE_Canada,Occurrence,63.557,-115.899,Slave Province
+Eden Lake,REE_Canada,Occurrence,56.6609,-100.1517,Churchill Province
+Francon Quarry - Orleans,REE_Canada,Occurrence,45.640337,-73.68076399999998,St. Lawrence Platform
+Oka,REE_Canada,Deposit/Prospect,45.589,-74.074,St. Lawrence Platform
+Perry River,REE_Canada,Showing,51.3167,-118.6011,Cordilleran Orogen (outside study polygon)
+Roadside,REE_Canada,Showing,52.4006,-119.0917,Cordilleran Orogen (outside study polygon)
+Ashram,Parsa_2024,Deposit/Prospect,56.95184339649025,-68.41067457779067,Churchill Province
+Exposition Mc,Parsa_2024,Showing,56.94664787833682,-68.31993848814491,Churchill Province
+Lac Savigny,Parsa_2024,Showing,56.41621038333049,-68.7691269988711,Churchill Province
+Zone Beckling,Parsa_2024,Deposit/Prospect,56.95773348986155,-68.35526997981205,Churchill Province
+Eastview Carbonatite,Parsa_2024,Occurrence,45.44503359306573,-75.56449135049162,St. Lawrence Platform
+Hecla-Kilmer PropertyS,Parsa_2024,Deposit/Prospect,50.332501009897676,-81.87638031169799,Hudson Bay Lowlands

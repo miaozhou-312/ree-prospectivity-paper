@@ -58,7 +58,7 @@ def classify(scores):
     return c
 
 
-def raster(grid, col, outline_p, res=2000.0):
+def raster(grid, col, outline_p, res=2000.0, classifier=classify):
     xs, ys = TO_P.transform(grid['lon'].values, grid['lat'].values)
     xmin, ymin, xmax, ymax = outline_p.total_bounds
     gx, gy = np.meshgrid(np.arange(xmin, xmax, res), np.arange(ymin, ymax, res))
@@ -70,35 +70,38 @@ def raster(grid, col, outline_p, res=2000.0):
     tf = from_origin(xmin, ymin, res, -res)                       # rows increase northwards
     inside = ~geometry_mask(list(outline_p.geometry), out_shape=gx.shape, transform=tf)
     z[~inside] = np.nan
-    return gx, gy, classify(z), (xmin, xmax, ymin, ymax)
+    return gx, gy, classifier(z), (xmin, xmax, ymin, ymax)
 
 
-def graticule(ax, extent, lons, lats, label_edges=True, fontsize=11):
+def graticule(ax, extent, lons, lats, label_edges=True, fontsize=11, lat_span=(30, 80), lon_span=(-150, -40),
+              label_top=True, color=GRAT_COLOR, lw=0.8):
     x0, x1, y0, y1 = extent
     for lo in lons:
-        la = np.linspace(30, 80, 400)
+        la = np.linspace(*lat_span, 400)
         x, y = TO_P.transform(np.full_like(la, lo), la)
-        ax.plot(x, y, color=GRAT_COLOR, lw=0.8, zorder=1)
+        ax.plot(x, y, color=color, lw=lw, zorder=1)
     for la in lats:
-        lo = np.linspace(-150, -40, 800)
+        lo = np.linspace(*lon_span, 800)
         x, y = TO_P.transform(lo, np.full_like(lo, la))
-        ax.plot(x, y, color=GRAT_COLOR, lw=0.8, zorder=1)
+        ax.plot(x, y, color=color, lw=lw, zorder=1)
     if not label_edges:
         return
     for lo in lons:                           # meridians on bottom / top edges
-        la = np.linspace(30, 80, 4000)
+        la = np.linspace(*lat_span, 4000)
         x, y = TO_P.transform(np.full_like(la, lo), la)
-        for edge, va, dy in [(y0, 'top', -0.012), (y1, 'bottom', 0.012)]:
-            i = np.argmin(np.abs(y - edge))
-            if abs(y[i] - edge) < 2e4 and x0 < x[i] < x1:
+        for edge, va, dy in [(y0, 'top', -0.012), (y1, 'bottom', 0.012)][:2 if label_top else 1]:
+            d = np.where((x0 < x) & (x < x1), np.abs(y - edge), np.inf)    # crossings inside the frame only
+            i = np.argmin(d)
+            if d[i] < 2e4:
                 ax.text(x[i], edge + dy * (y1 - y0), f'{lo:.0f}°', ha='center', va=va, fontsize=fontsize,
                         clip_on=False)
     for la in lats:                           # parallels on left / right edges
-        lo = np.linspace(-150, -40, 8000)
+        lo = np.linspace(*lon_span, 8000)
         x, y = TO_P.transform(lo, np.full_like(lo, la))
         for edge, ha, dx in [(x0, 'right', -0.01), (x1, 'left', 0.01)]:
-            i = np.argmin(np.abs(x - edge))
-            if abs(x[i] - edge) < 2e4 and y0 < y[i] < y1:
+            d = np.where((y0 < y) & (y < y1), np.abs(x - edge), np.inf)
+            i = np.argmin(d)
+            if d[i] < 2e4:
                 ax.text(edge + dx * (x1 - x0), y[i], f'{la:.0f}°', ha=ha, va='center', fontsize=fontsize,
                         clip_on=False)
 
@@ -147,8 +150,9 @@ def province_layers():
     return g
 
 
-def map_panel(ax, grid, col, title, letter, outline_p, dep, canada, region='Superior', show_legend=True):
-    gx, gy, cls, ext = raster(grid, col, outline_p)
+def map_panel(ax, grid, col, title, letter, outline_p, dep, canada, region='Superior', show_legend=True,
+              classifier=classify, labels=CLASS_LABELS):
+    gx, gy, cls, ext = raster(grid, col, outline_p, classifier=classifier)
     pad = 0.06
     w, h = ext[1] - ext[0], ext[3] - ext[2]
     frame = (ext[0] - pad * w, ext[1] + pad * w, ext[2] - 0.14 * h, ext[3] + 0.08 * h)
@@ -161,7 +165,8 @@ def map_panel(ax, grid, col, title, letter, outline_p, dep, canada, region='Supe
         s = dep[dep.dep_type == t]
         ax.scatter(s.x, s.y, s=70, c=c, edgecolors='black', linewidths=1.0, zorder=6)
     ax.set_xticks([]); ax.set_yticks([])
-    for sp in ax.spines.values():
+    for sp in ax.spines.values():             # all four: 06b's style hides the top and right spines
+        sp.set_visible(True)
         sp.set_linewidth(2.0)
     ax.text(0.03, 0.97, letter, transform=ax.transAxes, fontsize=26, va='top', ha='left')
     if show_legend:
@@ -169,7 +174,7 @@ def map_panel(ax, grid, col, title, letter, outline_p, dep, canada, region='Supe
                    for t, c in DEP_COLORS.items()]
         ax.legend(handles=handles, loc='upper left', bbox_to_anchor=(0.08, 0.97), frameon=False, fontsize=11,
                   handletextpad=1.2)
-    patches = [Patch(fc=c, ec='none', label=l) for c, l in zip(CLASS_COLORS, CLASS_LABELS)]
+    patches = [Patch(fc=c, ec='none', label=l) for c, l in zip(CLASS_COLORS, labels)]
     first = ax.get_legend()
     ax.legend(handles=patches, loc='lower left', frameon=False, fontsize=11, title=title, title_fontsize=12,
               alignment='left', handlelength=2.6, handleheight=1.5)
@@ -182,13 +187,14 @@ def map_panel(ax, grid, col, title, letter, outline_p, dep, canada, region='Supe
     outline_p.boundary.plot(ax=inset, color='#e4191c', lw=0.9)
     inset.set_xticks([]); inset.set_yticks([]); inset.set_aspect('equal')
     for sp in inset.spines.values():
+        sp.set_visible(True)
         sp.set_color('#8c8c8c'); sp.set_linewidth(0.8)
     return cls
 
 
 def superior_maps(panels=(('devnet', 'Superior DevNet MPM', 'a'), ('rf', 'Superior RF MPM', 'b')),
-                  outname='fig_map_superior_rev.png'):
-    grid = pd.read_csv(os.path.join(OUT_DIR, 'superior_grid_scores.csv'))
+                  outname='fig_map_superior_rev.png', grid_file='superior_grid_scores.csv'):
+    grid = pd.read_csv(os.path.join(OUT_DIR, grid_file))
     outline_p = gpd.read_file(os.path.join(REPO, 'data', 'outlines', 'Superior.geojson')).to_crs(CRS)
     dep = occurrences('Superior')
     canada = province_layers()
@@ -201,13 +207,62 @@ def superior_maps(panels=(('devnet', 'Superior DevNet MPM', 'a'), ('rf', 'Superi
     print('saved', outname)
 
 
+STABILITY_LABELS = ['<20% of models', '20–50%', '50–80%', '≥80% (stable)']
+
+
+def classify_stability(freq):
+    c = np.digitize(freq, [0.2, 0.5, 0.8]).astype(float)
+    c[np.isnan(freq)] = np.nan
+    return c
+
+
+def stability_maps(outname='fig_map_stability_rev.png', grid_file='superior_grid_uncertainty.csv'):
+    """Share of the 15 leave-one-occurrence-out models (Stage 21) that put
+    each node in the province's top 5%."""
+    grid = pd.read_csv(os.path.join(OUT_DIR, grid_file))
+    outline_p = gpd.read_file(os.path.join(REPO, 'data', 'outlines', 'Superior.geojson')).to_crs(CRS)
+    dep = occurrences('Superior')
+    canada = province_layers()
+    fig, axes = plt.subplots(1, 2, figsize=(16, 9.2))
+    for ax, (col, title, letter) in zip(axes, [('devnet_top5_freq', 'DevNet: top-5% stability', 'a'),
+                                                ('rf_top5_freq', 'RF: top-5% stability', 'b')]):
+        map_panel(ax, grid, col, title, letter, outline_p, dep, canada, classifier=classify_stability,
+                  labels=STABILITY_LABELS)
+    plt.tight_layout(w_pad=1.5)
+    fig.savefig(os.path.join(FIG, outname), dpi=250, bbox_inches='tight', facecolor='white')
+    plt.close(fig)
+    print('saved', outname)
+
+
+# Fig. 12: panel (b) is drawn on the pixel canvas of the thesis geology panel
+# (a, figures/fig_ksz_geology.png, 2631 x 1600 px), with every map element of
+# (a) -- frame, graticule, inset, scale bar, legends, north arrow, labels,
+# symbols and font (Tahoma) -- at the position and size measured on (a).
+KSZ_W, KSZ_H, KSZ_DPI = 2631, 1600, 250
+KSZ_FRAME = (88.5, 2542.0, 65.5, 1536.5)      # frame of (a): centres of its border lines, pixels
+KSZ_FONT, KSZ_SMALL = 'Tahoma', 9.5          # legend, scale-bar and occurrence text (pt)
+
+
+def _fx(x):
+    return x / KSZ_W
+
+
+def _fy(y):
+    return 1 - y / KSZ_H
+
+
+def _pt(px):
+    return px * 72 / KSZ_DPI
+
+
 def ksz_frame():
-    """Projected frame of the thesis KSZ geology panel, solved from where
-    its graticule meets the frame (pixel positions read off the figure,
-    2000 x 1216 display; frame x 65-1930, y 48-1168)."""
-    px0, px1, py0, py1 = 65, 1930, 48, 1168
-    meridians = [(-84, 255, py0), (-81, 1580, py0), (-84, 455, py1), (-81, 1835, py1)]
-    parallels = [(49, px0, 447), (49, px1, 70), (48, px1, 752), (48, px0, 1127)]
+    """Projected extent of the frame of (a), solved from where its graticule
+    crosses lines just inside the frame (pixel positions measured on the
+    2631 x 1600 image)."""
+    px0, px1, py0, py1 = KSZ_FRAME
+    meridians = [(-84, 342.0, 74), (-83, 921.0, 74), (-82, 1503.5, 74), (-81, 2090.0, 74),
+                 (-84, 596.0, 1528), (-83, 1199.0, 1528), (-82, 1805.5, 1528), (-81, 2415.5, 1528)]
+    parallels = [(49, 98, 587.5), (48, 98, 1477.0), (49, 2532, 100.0), (48, 2532, 1000.0)]
 
     def to_proj(p, xp, yp):
         X0, X1, Y0, Y1 = p
@@ -230,54 +285,161 @@ def ksz_frame():
     return sol.x
 
 
-def ksz_map(col='devnet', outname='fig_ksz_rev.png'):
-    grid = pd.read_csv(os.path.join(OUT_DIR, 'superior_grid_scores.csv'))
+def _box(fig, x0, y0, x1, y1, lw=1.0):
+    fig.add_artist(Rectangle((_fx(x0), _fy(y1)), (x1 - x0) / KSZ_W, (y1 - y0) / KSZ_H, transform=fig.transFigure,
+                             fc='white', ec='black', lw=lw, zorder=30))
+
+
+def _ksz_pixels(ax):
+    """Projected (x, y) -> pixel (column, row) on the canvas of (a)."""
+    X0, X1 = ax.get_xlim()
+    Y0, Y1 = ax.get_ylim()
+    sx = (KSZ_FRAME[1] - KSZ_FRAME[0]) / (X1 - X0)
+    sy = (KSZ_FRAME[3] - KSZ_FRAME[2]) / (Y1 - Y0)
+    return lambda x, y: (KSZ_FRAME[0] + (np.asarray(x) - X0) * sx, KSZ_FRAME[2] + (Y1 - np.asarray(y)) * sy)
+
+
+def _ksz_graticule_labels(fig, ax, lons, lats, fontsize=12):
+    """Graticule labels of (a): a short black tick continues each line 13 px
+    beyond the frame line, and the label sits off the end of the tick."""
+    to_px = _ksz_pixels(ax)
+    fx0, fx1, fy0, fy1 = KSZ_FRAME
+    tick = lambda p, q: fig.add_artist(Line2D([_fx(p[0]), _fx(q[0])], [_fy(p[1]), _fy(q[1])], transform=fig.transFigure,
+                                              color='black', lw=_pt(4), solid_capstyle='butt', zorder=30))
+    text = dict(fontsize=fontsize, zorder=30)
+    for lo in lons:
+        cx, cy = to_px(*TO_P.transform(np.full(2000, lo), np.linspace(46, 51, 2000)))
+        for edge, out in ((fy0, -1), (fy1, 1)):
+            i = np.argmin(np.abs(cy - edge))
+            if not fx0 < cx[i] < fx1:
+                continue
+            k = min(i + 1, len(cx) - 1) if cy[min(i + 1, len(cx) - 1)] * out > cy[i] * out else max(i - 1, 0)
+            dx, dy = cx[k] - cx[i], cy[k] - cy[i]
+            end = (cx[i] + dx / abs(dy) * 13, edge + 13 * out)
+            tick((cx[i], edge), end)
+            y = end[1] - 12 if out < 0 else end[1] + 41
+            fig.text(_fx(end[0]), _fy(y), f'{lo:.0f}°', ha='center', va='baseline', **text)
+    for la in lats:
+        cx, cy = to_px(*TO_P.transform(np.linspace(-90, -75, 4000), np.full(4000, la)))
+        for edge, out in ((fx0, -1), (fx1, 1)):
+            i = np.argmin(np.abs(cx - edge))
+            if not fy0 < cy[i] < fy1:
+                continue
+            k = min(i + 1, len(cx) - 1) if cx[min(i + 1, len(cx) - 1)] * out > cx[i] * out else max(i - 1, 0)
+            dx, dy = cx[k] - cx[i], cy[k] - cy[i]
+            end = (edge + 13 * out, cy[i] + dy / abs(dx) * 13)
+            tick((edge, cy[i]), end)
+            fig.text(_fx(end[0] + (12 if out > 0 else -11)), _fy(end[1] + (14.5 if out > 0 else 17)), f'{la:.0f}°',
+                     ha='left' if out > 0 else 'right', va='baseline', **text)
+
+
+def _ksz_north_arrow(fig, ax, tip):
+    """Outline arrow of (a), pointing to true north at its own position: thick
+    right side and base, thin left side; N below it."""
+    X0, X1 = ax.get_xlim()
+    Y0, Y1 = ax.get_ylim()
+    x = X0 + (tip[0] - KSZ_FRAME[0]) / (KSZ_FRAME[1] - KSZ_FRAME[0]) * (X1 - X0)
+    y = Y1 - (tip[1] - KSZ_FRAME[2]) / (KSZ_FRAME[3] - KSZ_FRAME[2]) * (Y1 - Y0)
+    lon, lat = TO_G.transform(x, y)
+    to_px = _ksz_pixels(ax)
+    u = np.subtract(to_px(*TO_P.transform(lon, lat + 0.5)), to_px(x, y))
+    u /= np.hypot(*u)                                   # north, in pixels (y down)
+    v = np.array([-u[1], u[0]])                         # to the right of north
+    t = np.array(tip, float)
+    right, notch, left = t - 138 * u + 46 * v, t - 126 * u, t - 138 * u - 46 * v
+    seg = lambda p, q, lw: fig.add_artist(Line2D([_fx(p[0]), _fx(q[0])], [_fy(p[1]), _fy(q[1])],
+                                                 transform=fig.transFigure, color='black', lw=lw,
+                                                 solid_capstyle='round', solid_joinstyle='round', zorder=30))
+    for p, q in ((t, right), (right, notch), (notch, left)):
+        seg(p, q, _pt(9))
+    seg(left, t, _pt(1.5))
+    n = t - 176 * u + 3 * v
+    fig.text(_fx(n[0]), _fy(n[1]), 'N', fontsize=16.5, fontweight='bold', ha='center', va='center',
+             rotation=np.degrees(np.arctan2(-u[0], -u[1])), zorder=30)
+
+
+def ksz_map(col='devnet', outname='fig_ksz_rev.png', grid_file='superior_grid_scores.csv'):
+    grid = pd.read_csv(os.path.join(OUT_DIR, grid_file))
     outline_p = gpd.read_file(os.path.join(REPO, 'data', 'outlines', 'Superior.geojson')).to_crs(CRS)
     X0, X1, Y0, Y1 = ksz_frame()
     gx, gy, cls, _ = raster(grid, col, outline_p, res=1000.0)   # classes over the whole province
     dep = occurrences('Superior')
     faults = gpd.read_file(os.path.join(os.path.dirname(REPO), 'dataset', 'vectors', 'Faults_Canada.geojson'))
     faults = faults.to_crs(CRS).clip(box(X0, Y0, X1, Y1))
-    fig = plt.figure(figsize=(2631 / 250, 1600 / 250))
-    ax = fig.add_axes([65 / 2000, 1 - 1168 / 1216, (1930 - 65) / 2000, (1168 - 48) / 1216])
-    ax.set_xlim(X0, X1); ax.set_ylim(Y0, Y1)
-    ax.pcolormesh(gx, gy, cls, cmap=ListedColormap(CLASS_COLORS), vmin=-0.5, vmax=3.5, shading='nearest',
-                  zorder=1, rasterized=True)
-    faults.plot(ax=ax, color='#4d4d4d', lw=1.6, zorder=3)
-    graticule(ax, (X0, X1, Y0, Y1), lons=[-84, -83, -82, -81], lats=[48, 49], fontsize=12)
-    s = dep[(dep.x > X0) & (dep.x < X1) & (dep.y > Y0) & (dep.y < Y1)]
-    ax.scatter(s.x, s.y, s=260, c='#377cb8', edgecolors='black', linewidths=2.2, zorder=6)
-    for txt, xp, yp in [('Wawa  Subprovince', 655, 545), ('Abitibi  Subprovince', 1160, 1015)]:
-        x = X0 + (xp - 65) / (1930 - 65) * (X1 - X0); y = Y1 - (yp - 48) / (1168 - 48) * (Y1 - Y0)
-        ax.text(x, y, txt, ha='center', va='center', fontsize=14, fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85), zorder=8)
-    x = X0 + (920 - 65) / (1930 - 65) * (X1 - X0); y = Y1 - (755 - 48) / (1168 - 48) * (Y1 - Y0)
-    ax.text(x, y, 'KSZ', rotation=52, ha='center', va='center', fontsize=16, fontweight='bold',
-            bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.85), zorder=8)
-    ax.set_xticks([]); ax.set_yticks([])
-    for sp in ax.spines.values():
-        sp.set_linewidth(3.0)
-    inset = ax.inset_axes([0.027, 0.63, 0.255, 0.335])
-    outline_p.boundary.plot(ax=inset, color='#333333', lw=1.2)
-    inset.add_patch(Rectangle((X0, Y0), X1 - X0, Y1 - Y0, fc='none', ec='#e4191c', lw=1.2))
-    inset.set_xticks([]); inset.set_yticks([]); inset.set_aspect('equal')
-    inset.text(0.12, 0.85, 'b', transform=inset.transAxes, fontsize=26)
-    patches = [Patch(fc=c, ec='none', label=l) for c, l in zip(CLASS_COLORS, CLASS_LABELS)]
-    leg = ax.legend(handles=[Line2D([], [], color='#4d4d4d', lw=2.5, label='Faults')] + patches,
-                    loc='lower right', frameon=True, fancybox=False, edgecolor='black', fontsize=12,
-                    handlelength=2.4, handleheight=1.3, borderpad=0.8, framealpha=1.0)
-    leg.get_frame().set_linewidth(1.5)
-    ax.add_artist(leg)
-    ax.legend(handles=[Line2D([], [], marker='o', ls='', mfc='#377cb8', mec='black', ms=13, label='Occurrence')],
-              loc='lower right', bbox_to_anchor=(0.755, 0.0), frameon=True, fancybox=False, edgecolor='black',
-              fontsize=12, borderpad=0.9, framealpha=1.0)
-    scale_bar(ax, 0.02, 0.06, 60, [0, 15, 30, 60])
-    north_arrow(ax, 0.93, 0.84, 0.11, (-81.2, 48.9))
-    fig.savefig(os.path.join(FIG, outname), dpi=250, facecolor='white')
-    plt.close(fig)
+    with plt.rc_context({'font.family': KSZ_FONT}):
+        fig = plt.figure(figsize=(KSZ_W / KSZ_DPI, KSZ_H / KSZ_DPI))
+        fx0, fx1, fy0, fy1 = KSZ_FRAME
+        ax = fig.add_axes([_fx(fx0), _fy(fy1), (fx1 - fx0) / KSZ_W, (fy1 - fy0) / KSZ_H])
+        ax.set_xlim(X0, X1); ax.set_ylim(Y0, Y1)
+        ax.pcolormesh(gx, gy, cls, cmap=ListedColormap(CLASS_COLORS), vmin=-0.5, vmax=3.5, shading='nearest',
+                      zorder=1, rasterized=True)
+        faults.plot(ax=ax, color=FAULT_COLOR, lw=_pt(7.5), zorder=3)
+        graticule(ax, (X0, X1, Y0, Y1), lons=[-84, -83, -82, -81], lats=[48, 49], label_edges=False,
+                  color='#828282', lw=_pt(3.5))
+        _ksz_graticule_labels(fig, ax, [-84, -83, -82, -81], [48, 49])
+        s = dep[(dep.x > X0) & (dep.x < X1) & (dep.y > Y0) & (dep.y < Y1)]
+        ax.scatter(s.x, s.y, s=_pt(33) ** 2, c=DEP_COLORS['Occurrence'], edgecolors='black', linewidths=_pt(6),
+                   zorder=6)
+        lab = dict(fontsize=12, fontweight='bold', ha='center', va='center', zorder=8,
+                   bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none'))
+        fig.text(_fx(859.5), _fy(721), 'Wawa  Subprovince', **lab)
+        fig.text(_fx(1525), _fy(1339), 'Abitibi  Subprovince', **lab)
+        fig.text(_fx(1210.5), _fy(991.5), 'KSZ', rotation=55, **dict(lab, fontsize=14))
+        ax.set_xticks([]); ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_visible(True)
+            sp.set_linewidth(_pt(8))
+        # inset: outline of the province with the frame of the map
+        ins = fig.add_axes([_fx(152.5), _fy(653.5), 625 / KSZ_W, 532 / KSZ_H], zorder=20)
+        outline_p.boundary.plot(ax=ins, color='#333333', lw=1.2)
+        ox0, oy0, ox1, oy1 = outline_p.total_bounds
+        wx = (ox1 - ox0) / ((746 - 173) / 625)
+        wy = (oy1 - oy0) / ((627 - 136) / 532)
+        ins.set_xlim(ox0 - (173 - 152.5) / 625 * wx, ox0 - (173 - 152.5) / 625 * wx + wx)
+        ins.set_ylim(oy0 - (653.5 - 627) / 532 * wy, oy0 - (653.5 - 627) / 532 * wy + wy)
+        ins.set_aspect('auto'); ins.set_xticks([]); ins.set_yticks([])
+        for sp in ins.spines.values():
+            sp.set_visible(True)
+            sp.set_linewidth(_pt(4))
+        fig.text(_fx(217), _fy(229), 'b', fontsize=24, ha='left', va='baseline', zorder=31)
+        # locator box as drawn in (a): position and size of (a)'s red box, not the extent of the frame
+        fig.add_artist(Rectangle((_fx(482.5), _fy(570.5)), 32 / KSZ_W, 21 / KSZ_H, transform=fig.transFigure,
+                                 fc='none', ec='#e91f20', lw=_pt(2), zorder=31))
+        # scale bar (true scale) in a white box
+        kmpx = (fx1 - fx0) / ((X1 - X0) / 1000.0)
+        _box(fig, 136, 1321.5, 669.5, 1460)
+        bx = lambda km: 159 + km * kmpx
+        fig.add_artist(Rectangle((_fx(bx(0)), _fy(1408)), 60 * kmpx / KSZ_W, 41 / KSZ_H, transform=fig.transFigure,
+                                 fc='black', ec='none', zorder=31))
+        fig.add_artist(Rectangle((_fx(bx(15) + 1), _fy(1400)), (15 * kmpx - 2) / KSZ_W, 25 / KSZ_H,
+                                 transform=fig.transFigure, fc='white', ec='none', zorder=32))
+        for km in (0, 15, 30, 60):
+            fig.text(_fx(bx(km) + 3), _fy(1363), f'{km}', fontsize=KSZ_SMALL, ha='center', va='baseline', zorder=32)
+        fig.text(_fx(bx(30) + 3), _fy(1442), 'Kilometers', fontsize=KSZ_SMALL, ha='center', va='baseline', zorder=32)
+        # legends: occurrence, then faults and classes (rows of 48.5 px, aligned with the bottom of (a)'s legend)
+        _box(fig, 1658, 1391, 1985.5, 1494)
+        fig.add_artist(Line2D([_fx(1706)], [_fy(1442)], transform=fig.transFigure, marker='o', ls='',
+                              ms=_pt(33), mfc=DEP_COLORS['Occurrence'], mec='black', mew=_pt(6), zorder=31))
+        fig.text(_fx(1783), _fy(1455), 'Occurrence', fontsize=KSZ_SMALL, ha='left', va='baseline', zorder=31)
+        rows = [1260 + 48.5 * k for k in range(5)]
+        _box(fig, 2023, rows[0] - 36, 2493.5, 1494)
+        fig.add_artist(Line2D([_fx(2055), _fx(2115)], [_fy(rows[0])] * 2, transform=fig.transFigure,
+                              color=FAULT_COLOR, lw=_pt(8), solid_capstyle='butt', zorder=31))
+        fig.text(_fx(2160), _fy(rows[0] + 12.5), 'Faults', fontsize=KSZ_SMALL, ha='left', va='baseline', zorder=31)
+        for y, c, l in zip(rows[1:], CLASS_COLORS, CLASS_LABELS):
+            fig.add_artist(Rectangle((_fx(2055), _fy(y + 14)), 60 / KSZ_W, 28 / KSZ_H, transform=fig.transFigure,
+                                     fc=c, ec='none', zorder=31))
+            fig.text(_fx(2162), _fy(y + 12.5), l, fontsize=KSZ_SMALL, ha='left', va='baseline', zorder=31)
+        _ksz_north_arrow(fig, ax, (2342, 155))
+        fig.savefig(os.path.join(FIG, outname), dpi=KSZ_DPI, facecolor='white')
+        plt.close(fig)
     print('saved', outname)
 
 
 if __name__ == '__main__':
-    superior_maps()
-    ksz_map()
+    import sys
+    if 'stability' in sys.argv:
+        stability_maps()
+    else:
+        superior_maps()
+        ksz_map()
